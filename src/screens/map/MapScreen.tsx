@@ -52,10 +52,12 @@ const MapScreen: React.FC = () => {
     setIsFollowingUser(false);
   }, []);
 
-  // 初期化時にサンプルデータの読み込み
+  // 初期化時にサンプルデータの読み込みと現在位置の取得
   useEffect(() => {
     setToiletLocations(sampleToilets);
-  }, []);
+    // アプリ起動時に現在位置を取得してフォーカス
+    moveToCurrentLocation();
+  }, [moveToCurrentLocation]);
 
   return (
     <View style={styles.container}>
@@ -203,25 +205,25 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
   userLocationMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#4285f4',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 3,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
   },
   userLocationIcon: {
-    fontSize: 8,
+    fontSize: 12,
     color: '#fff',
     fontWeight: 'bold',
   },
