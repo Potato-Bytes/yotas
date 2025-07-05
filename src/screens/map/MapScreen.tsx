@@ -8,10 +8,11 @@ import { sampleToilets } from '../../data/sampleToilets';
 
 const MapScreen: React.FC = () => {
   const mapRef = useRef<MapView>(null);
-  const [currentRegion, setCurrentRegion] = useState<MapRegion>(DEFAULT_MAP_REGION);
+  const [currentRegion, setCurrentRegion] = useState<MapRegion | null>(null);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [toiletLocations, setToiletLocations] = useState<ToiletLocation[]>([]);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   const {
     isLoading: isLocationLoading,
@@ -22,7 +23,7 @@ const MapScreen: React.FC = () => {
   const moveToCurrentLocation = useCallback(async () => {
     try {
       const currentUserLocation = await getCurrentLocation();
-      if (currentUserLocation && mapRef.current) {
+      if (currentUserLocation) {
         setUserLocation(currentUserLocation);
         const region: MapRegion = {
           latitude: currentUserLocation.latitude,
@@ -31,14 +32,22 @@ const MapScreen: React.FC = () => {
           longitudeDelta: 0.01,
         };
 
-        mapRef.current.animateToRegion(region, 1000);
         setCurrentRegion(region);
         setIsFollowingUser(true);
+        setIsInitialLoad(false);
+
+        // 初期読み込み後は地図をアニメーション
+        if (mapRef.current && !isInitialLoad) {
+          mapRef.current.animateToRegion(region, 1000);
+        }
       }
     } catch (error) {
       console.error('現在位置取得エラー:', error);
+      // エラー時はデフォルト位置を使用
+      setCurrentRegion(DEFAULT_MAP_REGION);
+      setIsInitialLoad(false);
     }
-  }, [getCurrentLocation]);
+  }, [getCurrentLocation, isInitialLoad]);
 
   // 地図の領域変更時の処理
   const handleRegionChangeComplete = useCallback((region: Region) => {
@@ -61,21 +70,29 @@ const MapScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* 現在位置取得中の表示 */}
+      {!currentRegion && (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>📍 現在位置を取得中...</Text>
+        </View>
+      )}
+      
       {/* 地図 */}
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        region={currentRegion}
-        onRegionChangeComplete={handleRegionChangeComplete}
-        showsUserLocation={true}
-        showsMyLocationButton={false}
-        showsCompass={true}
-        showsScale={true}
-        mapType="standard"
-        toolbarEnabled={false}
-        moveOnMarkerPress={false}
-      >
+      {currentRegion && (
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={currentRegion}
+          onRegionChangeComplete={handleRegionChangeComplete}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          showsCompass={true}
+          showsScale={true}
+          mapType="standard"
+          toolbarEnabled={false}
+          moveOnMarkerPress={false}
+        >
         {/* トイレマーカー */}
         {toiletLocations.map(toilet => (
           <Marker
@@ -112,7 +129,8 @@ const MapScreen: React.FC = () => {
             </View>
           </Marker>
         )}
-      </MapView>
+        </MapView>
+      )}
 
       {/* 浮きボタン */}
       <View style={styles.floatingButtons}>
@@ -141,6 +159,17 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
   },
   floatingButtons: {
     position: 'absolute',
