@@ -2,11 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { render, fireEvent, waitFor, mockUser, mockToilet } from '../../test-utils';
 
-// Mock Alert
-jest.mock('react-native/Libraries/Alert/Alert', () => ({
-  alert: jest.fn(),
-  prompt: jest.fn(),
-}));
+// Import components after setup
 import ReportModal from '../../components/report/ReportModal';
 import ReportHistoryScreen from '../../screens/report/ReportHistoryScreen';
 import { ReportTargetType, ReportReason } from '../../types/post';

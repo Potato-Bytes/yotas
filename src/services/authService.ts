@@ -32,7 +32,7 @@ class AuthService {
       const response = await GoogleSignin.signIn();
       console.log('Google Sign In response:', response);
       
-      const idToken = response.data?.idToken || (response as any).idToken;
+      const idToken = response.data?.idToken || (response as { idToken?: string }).idToken;
       if (!idToken) {
         throw new Error('IDトークンの取得に失敗しました');
       }
@@ -46,20 +46,22 @@ class AuthService {
       const userCredential = await auth().signInWithCredential(googleCredential);
 
       return this.formatUser(userCredential.user);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Google sign in error:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
+      
+      const errorWithCode = error as { code?: string; message?: string };
+      console.error('Error code:', errorWithCode.code);
+      console.error('Error message:', errorWithCode.message);
       
       // エラーコード別の詳細メッセージ
-      if (error.code === 'statusCodes.SIGN_IN_CANCELLED') {
+      if (errorWithCode.code === 'statusCodes.SIGN_IN_CANCELLED') {
         throw new Error('サインインがキャンセルされました');
-      } else if (error.code === 'statusCodes.IN_PROGRESS') {
+      } else if (errorWithCode.code === 'statusCodes.IN_PROGRESS') {
         throw new Error('サインインが進行中です');
-      } else if (error.code === 'statusCodes.PLAY_SERVICES_NOT_AVAILABLE') {
+      } else if (errorWithCode.code === 'statusCodes.PLAY_SERVICES_NOT_AVAILABLE') {
         throw new Error('Google Play Services が利用できません');
       } else {
-        throw new Error(`Googleサインインに失敗しました: ${error.message}`);
+        throw new Error(`Googleサインインに失敗しました: ${errorWithCode.message || 'Unknown error'}`);
       }
     }
   }

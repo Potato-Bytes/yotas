@@ -6,7 +6,6 @@ import {
   ReportTargetType,
   ReportReason,
   ReportStatus,
-  ViolationRecord,
 } from '../types/post';
 import { reportService } from '../services/reportService';
 import { useAuth } from '../stores/authStore';
@@ -63,8 +62,15 @@ export const useReport = () => {
           { text: 'OK' },
         ]);
 
-        // ユーザーの通報履歴を更新
-        await loadUserReports();
+        // ユーザーの通報履歴を更新（別途実行）
+        if (user) {
+          try {
+            const reports = await reportService.getUserReports(user.uid);
+            setState(prev => ({ ...prev, reports }));
+          } catch (error) {
+            console.error('Failed to refresh user reports:', error);
+          }
+        }
 
         return true;
       } catch (error) {

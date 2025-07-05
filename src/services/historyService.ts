@@ -3,10 +3,21 @@ import { ViewHistory, Favorite, UserActivity, ActivityType, UserStats } from '..
 import { ToiletLocation } from '../types/maps';
 
 export class HistoryService {
-  private viewHistoryCollection = firestore().collection('view_history');
-  private favoritesCollection = firestore().collection('favorites');
-  private activitiesCollection = firestore().collection('user_activities');
-  private userStatsCollection = firestore().collection('user_stats');
+  private get viewHistoryCollection() {
+    return firestore().collection('view_history');
+  }
+  
+  private get favoritesCollection() {
+    return firestore().collection('favorites');
+  }
+  
+  private get activitiesCollection() {
+    return firestore().collection('user_activities');
+  }
+  
+  private get userStatsCollection() {
+    return firestore().collection('user_stats');
+  }
 
   /**
    * 閲覧履歴を記録
@@ -50,15 +61,15 @@ export class HistoryService {
       await this.updateUserStats(userId, { totalViews: 1 });
 
       // 古い履歴を削除（最新100件のみ保持）
-      const oldHistory = await this.viewHistoryCollection
+      const allHistory = await this.viewHistoryCollection
         .where('userId', '==', userId)
         .orderBy('viewedAt', 'desc')
-        .offset(100)
         .get();
 
-      if (!oldHistory.empty) {
+      if (allHistory.docs.length > 100) {
         const batch = firestore().batch();
-        oldHistory.docs.forEach(doc => {
+        // 100件より古いものを削除
+        allHistory.docs.slice(100).forEach((doc: any) => {
           batch.delete(doc.ref);
         });
         await batch.commit();
@@ -269,15 +280,15 @@ export class HistoryService {
       });
 
       // 古いアクティビティを削除（最新200件のみ保持）
-      const oldActivities = await this.activitiesCollection
+      const allActivities = await this.activitiesCollection
         .where('userId', '==', userId)
         .orderBy('createdAt', 'desc')
-        .offset(200)
         .get();
 
-      if (!oldActivities.empty) {
+      if (allActivities.docs.length > 200) {
         const batch = firestore().batch();
-        oldActivities.docs.forEach(doc => {
+        // 200件より古いものを削除
+        allActivities.docs.slice(200).forEach((doc: any) => {
           batch.delete(doc.ref);
         });
         await batch.commit();

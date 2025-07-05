@@ -151,7 +151,7 @@ const ReportHistoryScreen: React.FC = () => {
           <Text style={styles.pointsTitle}>違反ポイント</Text>
         </View>
         <View style={styles.pointsContent}>
-          <Text style={[styles.pointsValue, isNearViolationLimit() && styles.dangerPoints]}>
+          <Text style={[styles.pointsValue, isNearViolationLimit && styles.dangerPoints]}>
             {violationPoints} / 20
           </Text>
           <View style={styles.pointsBar}>
@@ -160,13 +160,13 @@ const ReportHistoryScreen: React.FC = () => {
                 styles.pointsProgress,
                 {
                   width: `${Math.min((violationPoints / 20) * 100, 100)}%`,
-                  backgroundColor: isNearViolationLimit() ? '#f44336' : '#4285f4',
+                  backgroundColor: isNearViolationLimit ? '#f44336' : '#4285f4',
                 },
               ]}
             />
           </View>
         </View>
-        {isNearViolationLimit() && (
+        {isNearViolationLimit && (
           <Text style={styles.warningText}>
             ⚠️ 違反ポイントが高くなっています。20ポイントで永久停止となります。
           </Text>
@@ -174,7 +174,7 @@ const ReportHistoryScreen: React.FC = () => {
       </View>
 
       {/* アクティブな制限表示 */}
-      {hasActiveRestrictions() && (
+      {hasActiveRestrictions && (
         <View style={styles.restrictionsCard}>
           <View style={styles.restrictionsHeader}>
             <Icon name="lock-closed" size={20} color="#f44336" />

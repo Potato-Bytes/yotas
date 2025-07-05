@@ -13,10 +13,21 @@ import {
 } from '../types/post';
 
 export class ReportService {
-  private reportsCollection = firestore().collection('reports');
-  private restrictionsCollection = firestore().collection('user_restrictions');
-  private violationsCollection = firestore().collection('violation_records');
-  private configCollection = firestore().collection('system_config');
+  private get reportsCollection() {
+    return firestore().collection('reports');
+  }
+  
+  private get restrictionsCollection() {
+    return firestore().collection('user_restrictions');
+  }
+  
+  private get violationsCollection() {
+    return firestore().collection('violation_records');
+  }
+  
+  private get configCollection() {
+    return firestore().collection('system_config');
+  }
 
   // 自動制限設定（デフォルト値）
   private defaultConfig: AutoRestrictionConfig = {
@@ -479,7 +490,7 @@ export class ReportService {
 
       const doc = await firestore().collection(collection).doc(targetId).get();
 
-      if (doc.exists) {
+      if (doc.exists()) {
         const data = doc.data()!;
         return data.userId || data.authorId || null;
       }

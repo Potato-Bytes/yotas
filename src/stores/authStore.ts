@@ -16,7 +16,7 @@ interface AuthState {
   initialize: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   // 初期状態
   user: null,
   isLoading: false,

@@ -14,6 +14,7 @@ import {
   launchCamera,
   MediaType,
   ImagePickerResponse,
+  PhotoQuality,
 } from 'react-native-image-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -44,7 +45,7 @@ const ImagePickerComponent: React.FC<ImagePickerProps> = ({
   const openCamera = useCallback(() => {
     const options = {
       mediaType: 'photo' as MediaType,
-      quality: 0.8,
+      quality: 0.8 as PhotoQuality,
       maxWidth: 1024,
       maxHeight: 1024,
     };
@@ -63,7 +64,7 @@ const ImagePickerComponent: React.FC<ImagePickerProps> = ({
   const openImageLibrary = useCallback(() => {
     const options = {
       mediaType: 'photo' as MediaType,
-      quality: 0.8,
+      quality: 0.8 as PhotoQuality,
       maxWidth: 1024,
       maxHeight: 1024,
       selectionLimit: maxImages - images.length,

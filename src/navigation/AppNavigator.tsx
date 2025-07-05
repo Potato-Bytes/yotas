@@ -34,7 +34,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const MainTabs = () => (
   <Tab.Navigator
     screenOptions={({ route }) => ({
-      tabBarIcon: ({ focused, color, size }) => {
+      tabBarIcon: ({ focused, size }) => {
         let icon: string;
 
         if (route.name === 'Map') {
@@ -63,15 +63,11 @@ const MainTabs = () => (
 );
 
 const AppNavigator = () => {
-  console.log('AppNavigator: レンダリング中');
   const { isAuthenticated, isLoading } = useAuth();
   const initialize = useAuthStore(state => state.initialize);
 
-  console.log('AppNavigator: 認証状態', { isAuthenticated, isLoading });
-
   // アプリ起動時に認証状態を初期化
   useEffect(() => {
-    console.log('AppNavigator: useEffect で初期化を開始');
     try {
       initialize();
     } catch (error) {
@@ -81,15 +77,12 @@ const AppNavigator = () => {
 
   // 認証状態の確認中はローディング画面を表示
   if (isLoading) {
-    console.log('AppNavigator: ローディング画面を表示');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#4285f4" />
       </View>
     );
   }
-
-  console.log('AppNavigator: ナビゲーションを表示', { isAuthenticated });
 
   return (
     <NavigationContainer>

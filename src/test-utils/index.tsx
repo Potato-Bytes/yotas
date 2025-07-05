@@ -87,7 +87,7 @@ export const mockRoute = {
 export const waitForAsync = (ms: number = 0) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Firestore mockデータ生成ヘルパー
-export const createMockFirestoreDoc = (data: any) => ({
+export const createMockFirestoreDoc = (data: Record<string, unknown>) => ({
   id: data.id || 'mock-id',
   data: () => data,
   exists: true,
@@ -97,11 +97,11 @@ export const createMockFirestoreDoc = (data: any) => ({
   },
 });
 
-export const createMockFirestoreQuerySnapshot = (docs: any[]) => ({
+export const createMockFirestoreQuerySnapshot = (docs: Record<string, unknown>[]) => ({
   empty: docs.length === 0,
   size: docs.length,
   docs: docs.map(doc => createMockFirestoreDoc(doc)),
-  forEach: (callback: (doc: any) => void) => {
+  forEach: (callback: (doc: Record<string, unknown>) => void) => {
     docs.forEach(doc => callback(createMockFirestoreDoc(doc)));
   },
 });

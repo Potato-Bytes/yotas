@@ -45,8 +45,8 @@ const ToiletListItem: React.FC<ToiletListItemProps> = ({ toilet, onPress }) => {
         <View style={styles.toiletMeta}>
           <View style={styles.ratingContainer}>
             <Icon name="star" size={16} color="#FFD700" />
-            <Text style={styles.ratingText}>{toilet.rating.toFixed(1)}</Text>
-            <Text style={styles.reviewCount}>({toilet.reviewCount})</Text>
+            <Text style={styles.ratingText}>{toilet.rating?.toFixed(1) || 'N/A'}</Text>
+            <Text style={styles.reviewCount}>({toilet.reviewCount || 0})</Text>
           </View>
 
           {toilet.isAccessible && (
@@ -70,29 +70,30 @@ const SearchScreen: React.FC = () => {
     searchTime,
     error,
     filters,
-    savedSearches,
-    searchHistory,
+    // savedSearches, // For future use
+    // searchHistory, // For future use
     updateFilters,
     loadMore,
     resetSearch,
     clearFilters,
     quickSearch,
     saveFavoriteSearch,
-    applySavedSearch,
-    applyHistorySearch,
+    // applySavedSearch, // For future use
+    // applyHistorySearch, // For future use
     hasActiveFilters,
     hasResults,
     isEmpty,
   } = useSearch();
 
   const [showFilters, setShowFilters] = useState(false);
-  const [showSavedSearches, setShowSavedSearches] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  // Future feature: saved searches and history
+  // const [showSavedSearches, setShowSavedSearches] = useState(false);
+  // const [showHistory, setShowHistory] = useState(false);
 
   // トイレアイテムをタップ
-  const handleToiletPress = useCallback((toilet: ToiletLocation) => {
-    console.log('Navigate to toilet detail:', toilet.id);
+  const handleToiletPress = useCallback((_toilet: ToiletLocation) => {
     // TODO: 実際のナビゲーション実装
+    // Navigate to toilet detail for toilet.id
   }, []);
 
   // 検索条件を保存
@@ -104,7 +105,7 @@ const SearchScreen: React.FC = () => {
         { text: 'キャンセル', style: 'cancel' },
         {
           text: '保存',
-          onPress: async name => {
+          onPress: async (name?: string) => {
             if (name?.trim()) {
               try {
                 await saveFavoriteSearch(name.trim());

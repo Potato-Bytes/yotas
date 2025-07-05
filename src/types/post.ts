@@ -1,4 +1,4 @@
-import { ToiletType, Coordinate } from './maps';
+import { ToiletType, Coordinate, ToiletLocation } from './maps';
 
 // 複数トイレに対応した投稿フォームデータ型
 export interface ToiletPostForm {
@@ -387,7 +387,7 @@ export interface PushNotification {
   type: NotificationType;
   title: string;
   body: string;
-  data?: Record<string, any>; // 追加データ（画面遷移用など）
+  data?: Record<string, unknown>; // 追加データ（画面遷移用など）
   isRead: boolean;
   createdAt: Date;
   scheduledAt?: Date; // 予約送信時刻
@@ -453,7 +453,7 @@ export enum SortOption {
 
 // 検索結果
 export interface SearchResult {
-  toilets: any[]; // ToiletLocationは別ファイルで定義されているため、anyを使用
+  toilets: ToiletLocation[]; // ToiletLocationは別ファイルで定義されているため、anyを使用
   totalCount: number;
   hasMore: boolean;
   searchTime: number; // 検索時間（ms）

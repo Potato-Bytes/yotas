@@ -16,10 +16,11 @@ import { RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ToiletLocation } from '../../types/maps';
 import { firestoreService } from '../../services/firestoreService';
-import { getToiletIcon, getToiletTypeColor } from '../../utils/mapUtils';
+// Utility functions available for future use
+// import { getToiletIcon, getToiletTypeColor } from '../../utils/mapUtils';
 import { toiletTypeOptions, facilityLabels, facilityIcons } from '../../types/post';
 import HelpfulVoting from '../../components/post/HelpfulVoting';
-import StarRating from '../../components/common/StarRating';
+// import StarRating from '../../components/common/StarRating'; // Available for future use
 
 type RootStackParamList = {
   ToiletDetail: { toiletId: string };
@@ -178,14 +179,14 @@ const ToiletDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             <View style={styles.ratingRow}>
               <Text style={styles.ratingLabel}>総合評価</Text>
               <View style={styles.ratingValue}>
-                <Text style={styles.ratingNumber}>{toilet.rating.toFixed(1)}</Text>
+                <Text style={styles.ratingNumber}>{toilet.rating?.toFixed(1) || 'N/A'}</Text>
                 <View style={styles.stars}>
                   {[1, 2, 3, 4, 5].map(star => (
                     <Icon
                       key={star}
                       name="star"
                       size={16}
-                      color={star <= Math.round(toilet.rating) ? '#FFD700' : '#E0E0E0'}
+                      color={star <= Math.round(toilet.rating || 0) ? '#FFD700' : '#E0E0E0'}
                     />
                   ))}
                 </View>

@@ -10,27 +10,49 @@ jest.mock('@react-native-firebase/app', () => ({
   }),
 }));
 
+// Mock Firestore with proper Timestamp support
+const mockFirestoreDoc = () => ({
+  set: jest.fn(() => Promise.resolve()),
+  get: jest.fn(() => Promise.resolve({ exists: false, data: () => ({}) })),
+  update: jest.fn(() => Promise.resolve()),
+  delete: jest.fn(() => Promise.resolve()),
+  id: 'mock-doc-id',
+});
+
+const mockFirestoreQuery = () => ({
+  get: jest.fn(() => Promise.resolve({ empty: true, docs: [] })),
+  where: jest.fn(() => mockFirestoreQuery()),
+  orderBy: jest.fn(() => mockFirestoreQuery()),
+  limit: jest.fn(() => mockFirestoreQuery()),
+});
+
+const mockFirestoreCollection = () => ({
+  doc: jest.fn(() => mockFirestoreDoc()),
+  add: jest.fn(() => Promise.resolve({ id: 'mock-id' })),
+  where: jest.fn(() => mockFirestoreQuery()),
+  orderBy: jest.fn(() => mockFirestoreQuery()),
+  limit: jest.fn(() => mockFirestoreQuery()),
+  get: jest.fn(() => Promise.resolve({ empty: true, docs: [] })),
+});
+
+const mockFirestore = () => ({
+  collection: jest.fn(() => mockFirestoreCollection()),
+  batch: jest.fn(() => ({
+    delete: jest.fn(),
+    commit: jest.fn(() => Promise.resolve()),
+  })),
+});
+
+// Add Timestamp mock
+mockFirestore.Timestamp = {
+  now: jest.fn(() => ({ seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 })),
+  fromDate: jest.fn((date) => ({ seconds: Math.floor(date.getTime() / 1000), nanoseconds: 0 })),
+  fromMillis: jest.fn((millis) => ({ seconds: Math.floor(millis / 1000), nanoseconds: 0 })),
+};
+
 jest.mock('@react-native-firebase/firestore', () => ({
   __esModule: true,
-  default: jest.fn(() => ({
-    collection: jest.fn(() => ({
-      doc: jest.fn(() => ({
-        set: jest.fn(() => Promise.resolve()),
-        get: jest.fn(() => Promise.resolve({ exists: false })),
-        update: jest.fn(() => Promise.resolve()),
-        delete: jest.fn(() => Promise.resolve()),
-      })),
-      add: jest.fn(() => Promise.resolve({ id: 'mock-id' })),
-      where: jest.fn(() => ({
-        get: jest.fn(() => Promise.resolve({ empty: true, docs: [] })),
-        orderBy: jest.fn(() => ({
-          limit: jest.fn(() => ({
-            get: jest.fn(() => Promise.resolve({ empty: true, docs: [] })),
-          })),
-        })),
-      })),
-    })),
-  })),
+  default: mockFirestore,
 }));
 
 jest.mock('@react-native-firebase/auth', () => ({
@@ -74,11 +96,12 @@ jest.mock('react-native-safe-area-context', () => ({
 
 // React Native Vector Icons mock
 jest.mock('react-native-vector-icons/Ionicons', () => {
-  const Icon = ({ name, ...props }) => {
-    const React = require('react');
-    const { Text } = require('react-native');
-    return React.createElement(Text, { ...props }, `Icon-${name}`);
-  };
+   
+  const React = require('react');
+   
+  const { Text } = require('react-native');
+  
+  const Icon = ({ name, ...props }) => React.createElement(Text, { ...props }, `Icon-${name}`);
   return Icon;
 });
 
@@ -90,7 +113,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   clear: jest.fn(() => Promise.resolve()),
 }));
 
-// Alert mock - use a more targeted approach
+// Alert mock - simple approach
 jest.mock('react-native/Libraries/Alert/Alert', () => ({
   alert: jest.fn(),
   prompt: jest.fn(),
@@ -106,6 +129,35 @@ jest.mock('react-native/Libraries/Modal/Modal', () => {
   };
   return mockModal;
 });
+
+// Mock react-native-maps
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  
+  const MockMapView = (props) => React.createElement(View, props, props.children);
+  const MockMarker = (props) => React.createElement(View, props, props.children);
+  const MockPolyline = (props) => React.createElement(View, props);
+  const MockPolygon = (props) => React.createElement(View, props);
+  const MockCircle = (props) => React.createElement(View, props);
+  
+  return {
+    __esModule: true,
+    default: MockMapView,
+    Marker: MockMarker,
+    Polyline: MockPolyline,
+    Polygon: MockPolygon,
+    Circle: MockCircle,
+    PROVIDER_GOOGLE: 'google',
+    PROVIDER_DEFAULT: 'default',
+  };
+});
+
+// Mock native modules that don't exist in test environment
+jest.mock('react-native/Libraries/TurboModule/TurboModuleRegistry', () => ({
+  getEnforcing: jest.fn(() => ({})),
+  get: jest.fn(() => ({})),
+}));
 
 // Console warning suppression for tests
 global.console = {

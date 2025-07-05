@@ -577,9 +577,21 @@ export const useToiletPost = () => {
     updateToiletAdditionalFeatures,
 
     // 後方互換性のための関数（最初のトイレに対する操作）
-    updateTitle: (title: string) => updateToilet(0, { title }),
-    updateDescription: (description: string) => updateToilet(0, { description }),
-    updateAccessibility: (isAccessible: boolean) => updateToilet(0, { isAccessible }),
+    updateTitle: useCallback((title: string) => {
+      if (state.form.toilets.length > 0 && state.form.toilets[0]) {
+        updateToilet(state.form.toilets[0].id, { title });
+      }
+    }, [state.form.toilets, updateToilet]),
+    updateDescription: useCallback((description: string) => {
+      if (state.form.toilets.length > 0 && state.form.toilets[0]) {
+        updateToilet(state.form.toilets[0].id, { description });
+      }
+    }, [state.form.toilets, updateToilet]),
+    updateAccessibility: useCallback((isAccessible: boolean) => {
+      if (state.form.toilets.length > 0 && state.form.toilets[0]) {
+        updateToilet(state.form.toilets[0].id, { isAccessible });
+      }
+    }, [state.form.toilets, updateToilet]),
     updateFacility: (facilityKey: string, value: boolean) =>
       updateToiletFacility(0, facilityKey, value),
     updateRating: (ratingKey: keyof ToiletRatings, value: number) =>

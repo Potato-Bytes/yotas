@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   Text,
   Alert,
-  Dimensions,
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Region, Marker } from 'react-native-maps';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -19,7 +18,8 @@ interface LocationPickerProps {
   onConfirm: () => void;
 }
 
-const { width, height } = Dimensions.get('window');
+// Dimensions available if needed for future use
+// const { width, height } = Dimensions.get('window');
 
 const LocationPicker: React.FC<LocationPickerProps> = ({
   selectedLocation,
@@ -67,7 +67,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   }, [getCurrentLocation, showLocationError, onLocationSelect]);
 
   // 地図タップ時の処理
-  const handleMapPress = useCallback((event: any) => {
+  const handleMapPress = useCallback((event: { nativeEvent: { coordinate: Coordinate } }) => {
     const { coordinate } = event.nativeEvent;
     onLocationSelect(coordinate);
   }, [onLocationSelect]);

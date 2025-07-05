@@ -3,9 +3,17 @@ import { ToiletLocation } from '../types/maps';
 import { SearchFilters, SearchResult, SortOption, SavedSearch, SearchHistory } from '../types/post';
 
 export class SearchService {
-  private toiletsCollection = firestore().collection('toilets');
-  private savedSearchesCollection = firestore().collection('saved_searches');
-  private searchHistoryCollection = firestore().collection('search_history');
+  private get toiletsCollection() {
+    return firestore().collection('toilets');
+  }
+  
+  private get savedSearchesCollection() {
+    return firestore().collection('saved_searches');
+  }
+  
+  private get searchHistoryCollection() {
+    return firestore().collection('search_history');
+  }
 
   /**
    * トイレを検索
@@ -161,7 +169,7 @@ export class SearchService {
     return toilets.filter(
       toilet =>
         toilet.title.toLowerCase().includes(lowerQuery) ||
-        toilet.description.toLowerCase().includes(lowerQuery),
+        (toilet.description && toilet.description.toLowerCase().includes(lowerQuery)),
     );
   }
 
@@ -185,7 +193,7 @@ export class SearchService {
       }
 
       // 評価
-      if (filters.rating !== undefined && toilet.rating < filters.rating) {
+      if (filters.rating !== undefined && toilet.rating && toilet.rating < filters.rating) {
         return false;
       }
 
@@ -251,13 +259,13 @@ export class SearchService {
         return userLocation ? this.sortByDistance(toilets, userLocation) : toilets;
 
       case SortOption.RATING:
-        return toilets.sort((a, b) => b.rating - a.rating);
+        return toilets.sort((a, b) => (b.rating || 0) - (a.rating || 0));
 
       case SortOption.NEWEST:
         return toilets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       case SortOption.HELPFUL:
-        return toilets.sort((a, b) => b.reviewCount - a.reviewCount);
+        return toilets.sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0));
 
       case SortOption.RELEVANCE:
       default:
@@ -331,17 +339,18 @@ export class SearchService {
       await this.searchHistoryCollection.add(historyData);
 
       // 古い履歴を削除（最新50件のみ保持）
-      const oldHistory = await this.searchHistoryCollection
+      const allHistory = await this.searchHistoryCollection
         .where('userId', '==', userId)
         .orderBy('searchedAt', 'desc')
-        .offset(50)
         .get();
 
-      const batch = firestore().batch();
-      oldHistory.docs.forEach(doc => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
+      if (allHistory.docs.length > 50) {
+        const batch = firestore().batch();
+        allHistory.docs.slice(50).forEach((doc: any) => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+      }
     } catch (error) {
       console.error('Failed to save search history:', error);
     }

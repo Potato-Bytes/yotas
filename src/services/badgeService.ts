@@ -116,7 +116,7 @@ export class BadgeService {
   private evaluateBadgeCondition(
     badge: Badge,
     userStats: Record<string, number>,
-    userBadges: UserBadges,
+    _userBadges: UserBadges,
   ): boolean {
     const { condition } = badge;
     const currentValue = userStats[condition.target] || 0;
@@ -237,7 +237,7 @@ export class BadgeService {
     try {
       const userStats = await this.getUserStats(userId);
 
-      const updatedStats = {
+      const updatedStats: Record<string, any> = {
         ...userStats,
         toilets_posted: (userStats.toilets_posted || 0) + 1,
         accessible_toilets_posted: toiletData.isAccessible
@@ -246,10 +246,10 @@ export class BadgeService {
       };
 
       // 地域とタイプの追跡
-      const postedAreas = userStats.posted_areas ? JSON.parse(userStats.posted_areas) : [];
-      const postedTypes = userStats.posted_types ? JSON.parse(userStats.posted_types) : [];
+      const postedAreas = userStats.posted_areas && typeof userStats.posted_areas === 'string' ? JSON.parse(userStats.posted_areas) : [];
+      const postedTypes = userStats.posted_types && typeof userStats.posted_types === 'string' ? JSON.parse(userStats.posted_types) : [];
 
-      if (!postedAreas.includes(toiletData.area)) {
+      if (toiletData.area && !postedAreas.includes(toiletData.area)) {
         postedAreas.push(toiletData.area);
         updatedStats.unique_areas_posted = postedAreas.length;
         updatedStats.posted_areas = JSON.stringify(postedAreas);

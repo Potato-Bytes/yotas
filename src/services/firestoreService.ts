@@ -27,52 +27,70 @@ export class FirestoreService {
   }
 
   /**
-   * トイレ情報をFirestoreに保存
+   * トイレ情報をFirestoreに保存（複数トイレ対応）
    */
   async createToilet(form: ToiletPostForm, userId: string): Promise<string> {
     try {
-      // Firestoreドキュメントを作成
-      const toiletRef = this.toiletsCollection.doc();
-      const toiletId = toiletRef.id;
+      // 施設ドキュメントを作成
+      const facilityRef = this.toiletsCollection.doc();
+      const facilityId = facilityRef.id;
 
-      // 画像をアップロード
-      let imageUrls: string[] = [];
-      if (form.images.length > 0) {
-        imageUrls = await this.uploadImages(form.images, toiletId);
+      // 施設画像をアップロード
+      let facilityImageUrls: string[] = [];
+      if (form.facilityImages.length > 0) {
+        facilityImageUrls = await this.uploadImages(form.facilityImages, `${facilityId}/facility`);
       }
 
-      // Firestoreに保存するデータ
+      // 施設データ（最初のトイレの情報を使用）
+      const firstToilet = form.toilets[0];
+      if (!firstToilet) {
+        throw new Error('少なくとも1つのトイレ情報が必要です');
+      }
+
+      // 各トイレの画像をアップロード
+      let toiletImageUrls: string[] = [];
+      if (firstToilet.images.length > 0) {
+        toiletImageUrls = await this.uploadImages(firstToilet.images, `${facilityId}/toilet_0`);
+      }
+
+      // Firestoreに保存するデータ（既存の構造を維持）
       const toiletData = {
-        id: toiletId,
-        title: form.title,
-        description: form.description,
+        id: facilityId,
+        title: form.facilityTitle,
+        description: form.facilityDescription,
         type: form.type,
-        isAccessible: form.isAccessible,
+        isAccessible: firstToilet.isAccessible,
         location: {
           latitude: form.location!.latitude,
           longitude: form.location!.longitude,
         },
-        facilities: form.facilities,
+        facilities: firstToilet.facilities,
         openingHours: form.openingHours,
         additionalInfo: form.additionalInfo,
-        detailedEquipment: form.detailedEquipment,
-        ratings: form.ratings,
-        images: imageUrls,
+        detailedEquipment: firstToilet.detailedEquipment,
+        ratings: firstToilet.ratings,
+        images: [...facilityImageUrls, ...toiletImageUrls],
         createdBy: userId,
         createdAt: firestore.Timestamp.now(),
         updatedAt: firestore.Timestamp.now(),
-        rating: form.ratings.overall || 0,
+        rating: firstToilet.ratings.overall || 0,
         reviewCount: 1,
         isActive: true,
+        // 複数トイレ情報を追加フィールドとして保存
+        toilets: form.toilets.map((toilet, index) => ({
+          ...toilet,
+          images: index === 0 ? toiletImageUrls : [], // 現在は最初のトイレの画像のみアップロード
+        })),
       };
 
-      await toiletRef.set(toiletData);
-      return toiletId;
-    } catch (error: any) {
+      await facilityRef.set(toiletData);
+      return facilityId;
+    } catch (error: unknown) {
       console.error('Failed to create toilet:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      throw new Error(`トイレの投稿に失敗しました: ${error.message}`);
+      const errorWithMessage = error as { code?: string; message?: string };
+      console.error('Error code:', errorWithMessage.code);
+      console.error('Error message:', errorWithMessage.message);
+      throw new Error(`トイレの投稿に失敗しました: ${errorWithMessage.message || 'Unknown error'}`);
     }
   }
 

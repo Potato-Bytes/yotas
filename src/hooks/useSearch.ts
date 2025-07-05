@@ -5,16 +5,19 @@ import { searchService } from '../services/searchService';
 import { useAuth } from '../stores/authStore';
 import { useLocation } from './useLocation';
 
-// Debounce utility function
-const useDebounce = (callback: Function, delay: number) => {
-  const timeoutRef = useRef<NodeJS.Timeout>();
+// Debounce utility function for search
+const useDebounceSearch = (
+  callback: (searchFilters: SearchFilters, page?: number, append?: boolean) => Promise<void>,
+  delay: number
+) => {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   return useCallback(
-    (...args: any[]) => {
+    (searchFilters: SearchFilters, page = 0, append = false) => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
-      timeoutRef.current = setTimeout(() => callback(...args), delay);
+      timeoutRef.current = setTimeout(() => callback(searchFilters, page, append), delay);
     },
     [callback, delay],
   );
@@ -73,13 +76,13 @@ export const useSearch = () => {
         try {
           userLocation = await getCurrentLocation();
         } catch (error) {
-          console.log('Location not available for search');
+          // Location not available for search, continue without location
         }
 
         // 検索実行
         const result: SearchResult = await searchService.searchToilets(
           searchFilters,
-          userLocation,
+          userLocation || undefined,
           PAGE_SIZE,
           page * PAGE_SIZE,
         );
@@ -113,7 +116,7 @@ export const useSearch = () => {
   );
 
   // デバウンス付きの検索関数
-  const debouncedSearch = useDebounce(executeSearch, 300);
+  const debouncedSearch = useDebounceSearch(executeSearch, 300);
 
   // フィルター更新（最適化版）
   const updateFilters = useCallback(
@@ -259,7 +262,7 @@ export const useSearch = () => {
       loadSavedSearches();
       loadSearchHistory();
     }
-  }, [user, loadSavedSearches, loadSearchHistory]);
+  }, [user]); // loadSavedSearches and loadSearchHistory are stable and already depend on user
 
   // フィルターの便利メソッド
   const clearFilters = useCallback(() => {

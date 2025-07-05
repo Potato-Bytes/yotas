@@ -45,9 +45,11 @@ const BadgeItem: React.FC<BadgeItemProps> = ({
     {
       width: config.container,
       height: config.container,
-      borderColor: unlocked ? rarityColor : '#e0e0e0',
-      backgroundColor: unlocked ? `${rarityColor}15` : '#f5f5f5',
     },
+    unlocked ? {
+      borderColor: rarityColor,
+      backgroundColor: `${rarityColor}15`,
+    } : styles.lockedContainerColors,
     !unlocked && styles.lockedContainer,
   ];
 
@@ -61,8 +63,8 @@ const BadgeItem: React.FC<BadgeItemProps> = ({
           styles.icon,
           {
             fontSize: config.icon,
-            opacity: unlocked ? 1 : 0.3,
           },
+          unlocked ? styles.unlockedIcon : styles.lockedIcon,
         ]}
       >
         {badge.icon}
@@ -72,9 +74,7 @@ const BadgeItem: React.FC<BadgeItemProps> = ({
       <View
         style={[
           styles.rarityIndicator,
-          {
-            backgroundColor: unlocked ? rarityColor : '#ccc',
-          },
+          unlocked ? { backgroundColor: rarityColor } : styles.lockedRarityIndicator,
         ]}
       />
 
@@ -84,8 +84,8 @@ const BadgeItem: React.FC<BadgeItemProps> = ({
           styles.name,
           {
             fontSize: config.fontSize,
-            color: unlocked ? '#333' : '#999',
           },
+          unlocked ? styles.unlockedName : styles.lockedName,
         ]}
         numberOfLines={2}
       >
@@ -166,6 +166,25 @@ const styles = StyleSheet.create({
   },
   lockedContainer: {
     opacity: 0.6,
+  },
+  lockedContainerColors: {
+    borderColor: '#e0e0e0',
+    backgroundColor: '#f5f5f5',
+  },
+  unlockedIcon: {
+    opacity: 1,
+  },
+  lockedIcon: {
+    opacity: 0.3,
+  },
+  lockedRarityIndicator: {
+    backgroundColor: '#ccc',
+  },
+  unlockedName: {
+    color: '#333',
+  },
+  lockedName: {
+    color: '#999',
   },
   icon: {
     textAlign: 'center',

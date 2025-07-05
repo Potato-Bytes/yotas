@@ -11,7 +11,7 @@ import {
   Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import DatePicker from '@react-native-community/datetimepicker';
+import DatePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useNotifications } from '../../hooks/useNotifications';
 import { NotificationSettings } from '../../types/post';
 
@@ -47,7 +47,7 @@ const NotificationSettingsScreen: React.FC = () => {
 
   // 時刻選択の処理
   const handleTimeChange = useCallback(
-    (type: 'start' | 'end', event: any, selectedTime?: Date) => {
+    (type: 'start' | 'end', event: DateTimePickerEvent, selectedTime?: Date) => {
       if (type === 'start') {
         setShowStartTimePicker(false);
       } else {

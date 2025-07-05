@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Modal,
-  FlatList,
   ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -18,7 +17,6 @@ import { CATEGORY_COLORS, RARITY_COLORS } from '../../data/badges';
 
 const BadgeScreen: React.FC = () => {
   const {
-    unlockedBadges,
     allBadges,
     isLoading,
     badgeCount,

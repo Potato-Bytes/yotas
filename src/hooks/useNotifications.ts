@@ -30,8 +30,16 @@ export const useNotifications = () => {
       await notificationService.initialize(user.uid);
       setState(prev => ({ ...prev, isInitialized: true }));
 
-      // 初期データの読み込み
-      await Promise.all([loadNotifications(), loadSettings(), loadUnreadCount()]);
+      // 初期データの読み込み（個別に実行して依存関係の問題を回避）
+      try {
+        const [notifications, unreadCount] = await Promise.all([
+          notificationService.getUserNotifications(user.uid),
+          notificationService.getUnreadCount(user.uid)
+        ]);
+        setState(prev => ({ ...prev, notifications, unreadCount }));
+      } catch (error) {
+        console.error('Failed to load initial notification data:', error);
+      }
     } catch (error) {
       console.error('Failed to initialize notifications:', error);
     }

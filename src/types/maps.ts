@@ -23,6 +23,23 @@ export interface ToiletLocation extends Coordinate {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  images?: string[];
+  facilities?: {
+    hasWashlet?: boolean;
+    hasHandDryer?: boolean;
+    hasBabyChanging?: boolean;
+    hasMultiPurpose?: boolean;
+    hasPaperTowels?: boolean;
+    hasHandSoap?: boolean;
+    hasVendingMachine?: boolean;
+  };
+  openingHours?: {
+    is24Hours: boolean;
+    openTime?: string;
+    closeTime?: string;
+    notes?: string;
+  };
+  additionalInfo?: string;
 }
 
 export enum ToiletType {

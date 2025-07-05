@@ -19,6 +19,7 @@ import {
   facilityIcons,
   ratingCategories,
   genderTypeOptions,
+  DetailedToiletEquipment,
 } from '../../types/post';
 import { ToiletType } from '../../types/maps';
 import LocationPicker from '../../components/map/LocationPicker';
@@ -117,12 +118,12 @@ const PostReviewScreen: React.FC = () => {
             <Text style={styles.label}>タイトル *</Text>
             <TextInput
               style={styles.textInput}
-              value={form.title}
+              value={form.toilets[0]?.title || ''}
               onChangeText={updateTitle}
               placeholder="例: 東京駅丸の内口トイレ"
               maxLength={50}
             />
-            <Text style={styles.charCount}>{form.title.length}/50</Text>
+            <Text style={styles.charCount}>{form.toilets[0]?.title.length || 0}/50</Text>
           </View>
 
           {/* 説明 */}
@@ -130,14 +131,14 @@ const PostReviewScreen: React.FC = () => {
             <Text style={styles.label}>説明</Text>
             <TextInput
               style={[styles.textInput, styles.textArea]}
-              value={form.description}
+              value={form.toilets[0]?.description || ''}
               onChangeText={updateDescription}
               placeholder="トイレの特徴や注意点など..."
               multiline
               numberOfLines={4}
               maxLength={500}
             />
-            <Text style={styles.charCount}>{form.description.length}/500</Text>
+            <Text style={styles.charCount}>{form.toilets[0]?.description.length || 0}/500</Text>
           </View>
 
           {/* トイレタイプ */}
@@ -173,7 +174,7 @@ const PostReviewScreen: React.FC = () => {
               <Text style={styles.switchLabel}>バリアフリー対応</Text>
             </View>
             <Switch
-              value={form.isAccessible}
+              value={form.toilets[0]?.isAccessible || false}
               onValueChange={updateAccessibility}
               thumbColor="#fff"
               trackColor={{ false: '#ccc', true: '#4CAF50' }}
@@ -193,8 +194,8 @@ const PostReviewScreen: React.FC = () => {
                 <Text style={styles.switchLabel}>{label}</Text>
               </View>
               <Switch
-                value={form.facilities[key as keyof typeof form.facilities]}
-                onValueChange={value => updateFacility(key as keyof typeof form.facilities, value)}
+                value={form.toilets[0]?.facilities[key as keyof typeof facilityLabels] || false}
+                onValueChange={(value: boolean) => updateFacility(key, value)}
                 thumbColor="#fff"
                 trackColor={{ false: '#ccc', true: '#4285f4' }}
               />
@@ -215,11 +216,11 @@ const PostReviewScreen: React.FC = () => {
                   key={option.value}
                   style={[
                     styles.genderTypeOption,
-                    form.detailedEquipment.genderType === option.value && styles.selectedGenderType,
+                    form.toilets[0]?.detailedEquipment.genderType === option.value && styles.selectedGenderType,
                   ]}
                   onPress={() =>
                     updateDetailedEquipment({
-                      genderType: option.value,
+                      genderType: option.value as 'separate' | 'shared' | 'multipurpose',
                       maleEquipment:
                         option.value === 'separate' ? { urinals: 0, westernToilets: 0 } : null,
                       femaleEquipment:
@@ -241,7 +242,7 @@ const PostReviewScreen: React.FC = () => {
           </View>
 
           {/* 男性用設備（男女別の場合） */}
-          {form.detailedEquipment.genderType === 'separate' && (
+          {form.toilets[0]?.detailedEquipment.genderType === 'separate' && (
             <View style={styles.equipmentSection}>
               <Text style={styles.equipmentTitle}>🚹 男性用設備</Text>
               <View style={styles.equipmentRow}>
@@ -249,7 +250,7 @@ const PostReviewScreen: React.FC = () => {
                   <Text style={styles.equipmentLabel}>小便器</Text>
                   <TextInput
                     style={styles.numberInput}
-                    value={form.detailedEquipment.maleEquipment?.urinals?.toString() || '0'}
+                    value={form.toilets[0]?.detailedEquipment.maleEquipment?.urinals?.toString() || '0'}
                     onChangeText={text => updateMaleEquipment({ urinals: parseInt(text) || 0 })}
                     keyboardType="numeric"
                     placeholder="0"
@@ -260,7 +261,7 @@ const PostReviewScreen: React.FC = () => {
                   <Text style={styles.equipmentLabel}>洋式便器</Text>
                   <TextInput
                     style={styles.numberInput}
-                    value={form.detailedEquipment.maleEquipment?.westernToilets?.toString() || '0'}
+                    value={form.toilets[0]?.detailedEquipment.maleEquipment?.westernToilets?.toString() || '0'}
                     onChangeText={text =>
                       updateMaleEquipment({ westernToilets: parseInt(text) || 0 })
                     }
@@ -274,7 +275,7 @@ const PostReviewScreen: React.FC = () => {
           )}
 
           {/* 女性用設備（男女別の場合） */}
-          {form.detailedEquipment.genderType === 'separate' && (
+          {form.toilets[0]?.detailedEquipment.genderType === 'separate' && (
             <View style={styles.equipmentSection}>
               <Text style={styles.equipmentTitle}>🚺 女性用設備</Text>
               <View style={styles.equipmentRow}>
@@ -283,7 +284,7 @@ const PostReviewScreen: React.FC = () => {
                   <TextInput
                     style={styles.numberInput}
                     value={
-                      form.detailedEquipment.femaleEquipment?.japaneseToilets?.toString() || '0'
+                      form.toilets[0]?.detailedEquipment.femaleEquipment?.japaneseToilets?.toString() || '0'
                     }
                     onChangeText={text =>
                       updateFemaleEquipment({ japaneseToilets: parseInt(text) || 0 })
@@ -298,7 +299,7 @@ const PostReviewScreen: React.FC = () => {
                   <TextInput
                     style={styles.numberInput}
                     value={
-                      form.detailedEquipment.femaleEquipment?.westernToilets?.toString() || '0'
+                      form.toilets[0]?.detailedEquipment.femaleEquipment?.westernToilets?.toString() || '0'
                     }
                     onChangeText={text =>
                       updateFemaleEquipment({ westernToilets: parseInt(text) || 0 })
@@ -313,10 +314,10 @@ const PostReviewScreen: React.FC = () => {
           )}
 
           {/* 共用設備（共用・多目的の場合） */}
-          {form.detailedEquipment.genderType !== 'separate' && (
+          {form.toilets[0]?.detailedEquipment.genderType !== 'separate' && (
             <View style={styles.equipmentSection}>
               <Text style={styles.equipmentTitle}>
-                {form.detailedEquipment.genderType === 'shared' ? '🚽 共用設備' : '♿ 多目的設備'}
+                {form.toilets[0]?.detailedEquipment.genderType === 'shared' ? '🚽 共用設備' : '♿ 多目的設備'}
               </Text>
               <View style={styles.equipmentRow}>
                 <View style={styles.equipmentItem}>
@@ -324,7 +325,7 @@ const PostReviewScreen: React.FC = () => {
                   <TextInput
                     style={styles.numberInput}
                     value={
-                      form.detailedEquipment.sharedEquipment?.japaneseToilets?.toString() || '0'
+                      form.toilets[0]?.detailedEquipment.sharedEquipment?.japaneseToilets?.toString() || '0'
                     }
                     onChangeText={text =>
                       updateSharedEquipment({ japaneseToilets: parseInt(text) || 0 })
@@ -339,7 +340,7 @@ const PostReviewScreen: React.FC = () => {
                   <TextInput
                     style={styles.numberInput}
                     value={
-                      form.detailedEquipment.sharedEquipment?.westernToilets?.toString() || '0'
+                      form.toilets[0]?.detailedEquipment.sharedEquipment?.westernToilets?.toString() || '0'
                     }
                     onChangeText={text =>
                       updateSharedEquipment({ westernToilets: parseInt(text) || 0 })
@@ -369,13 +370,13 @@ const PostReviewScreen: React.FC = () => {
                 <Text style={styles.switchLabel}>{label}</Text>
                 <Switch
                   value={
-                    form.detailedEquipment.additionalFeatures[
-                      key as keyof typeof form.detailedEquipment.additionalFeatures
-                    ]
+                    form.toilets[0]?.detailedEquipment.additionalFeatures[
+                      key as keyof DetailedToiletEquipment['additionalFeatures']
+                    ] || false
                   }
                   onValueChange={value =>
                     updateAdditionalFeatures(
-                      key as keyof typeof form.detailedEquipment.additionalFeatures,
+                      key as keyof DetailedToiletEquipment['additionalFeatures'],
                       value,
                     )
                   }
@@ -441,7 +442,7 @@ const PostReviewScreen: React.FC = () => {
           {ratingCategories.map(category => (
             <StarRating
               key={category.key}
-              rating={form.ratings[category.key] || 0}
+              rating={form.toilets[0]?.ratings[category.key] || 0}
               onRatingChange={rating => updateRating(category.key, rating)}
               label={`${category.icon} ${category.label}`}
               description={category.description}
@@ -454,7 +455,7 @@ const PostReviewScreen: React.FC = () => {
         {/* 写真 */}
         <View style={styles.section}>
           <ImagePickerComponent
-            images={form.images}
+            images={form.toilets[0]?.images || []}
             onAddImage={addImage}
             onRemoveImage={removeImage}
             maxImages={5}
