@@ -1,0 +1,156 @@
+import auth from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+export interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+class AuthService {
+  constructor() {
+    this.configureGoogleSignIn();
+  }
+
+  private configureGoogleSignIn() {
+    GoogleSignin.configure({
+      webClientId: '787078900732-m6hflbubinifr6rn24gaqvisj15qmaae.apps.googleusercontent.com',
+    });
+  }
+
+  /**
+   * Googleサインインを実行
+   */
+  async signInWithGoogle(): Promise<User> {
+    try {
+      // Google サインイン画面を表示
+      console.log('Checking Google Play Services...');
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      console.log('Starting Google Sign In...');
+      const response = await GoogleSignin.signIn();
+      console.log('Google Sign In response:', response);
+      
+      const idToken = response.data?.idToken || (response as any).idToken;
+      if (!idToken) {
+        throw new Error('IDトークンの取得に失敗しました');
+      }
+
+      // Google認証情報を作成
+      console.log('Creating Firebase credential...');
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+
+      // Firebase にサインイン
+      console.log('Signing in with Firebase...');
+      const userCredential = await auth().signInWithCredential(googleCredential);
+
+      return this.formatUser(userCredential.user);
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      
+      // エラーコード別の詳細メッセージ
+      if (error.code === 'statusCodes.SIGN_IN_CANCELLED') {
+        throw new Error('サインインがキャンセルされました');
+      } else if (error.code === 'statusCodes.IN_PROGRESS') {
+        throw new Error('サインインが進行中です');
+      } else if (error.code === 'statusCodes.PLAY_SERVICES_NOT_AVAILABLE') {
+        throw new Error('Google Play Services が利用できません');
+      } else {
+        throw new Error(`Googleサインインに失敗しました: ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * サインアウト
+   */
+  async signOut(): Promise<void> {
+    try {
+      // Firebase からサインアウト
+      await auth().signOut();
+
+      // Google からもサインアウト
+      await GoogleSignin.signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw new Error('サインアウトに失敗しました');
+    }
+  }
+
+  /**
+   * 認証状態変更の監視
+   */
+  onAuthStateChanged(callback: (user: User | null) => void): () => void {
+    try {
+      return auth().onAuthStateChanged(firebaseUser => {
+        try {
+          if (firebaseUser) {
+            callback(this.formatUser(firebaseUser));
+          } else {
+            callback(null);
+          }
+        } catch (error) {
+          console.log('authService: onAuthStateChanged コールバックでエラー:', error);
+          callback(null);
+        }
+      });
+    } catch (error) {
+      console.log('authService: onAuthStateChanged でエラー:', error);
+      // ダミー関数を返す
+      return () => {};
+    }
+  }
+
+  /**
+   * 現在のユーザーを取得
+   */
+  getCurrentUser(): User | null {
+    try {
+      const firebaseUser = auth().currentUser;
+      return firebaseUser ? this.formatUser(firebaseUser) : null;
+    } catch (error) {
+      console.log('authService: getCurrentUser でエラー:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Firebase Userオブジェクトを標準形式に変換
+   */
+  private formatUser(firebaseUser: any): User {
+    return {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      displayName: firebaseUser.displayName,
+      photoURL: firebaseUser.photoURL,
+    };
+  }
+
+  /**
+   * アカウント削除
+   */
+  async deleteAccount(): Promise<void> {
+    try {
+      const user = auth().currentUser;
+      if (user) {
+        await user.delete();
+        await GoogleSignin.signOut();
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      throw new Error('アカウント削除に失敗しました');
+    }
+  }
+
+  /**
+   * ユーザーがサインインしているかチェック
+   */
+  isSignedIn(): boolean {
+    return auth().currentUser !== null;
+  }
+}
+
+export const authService = new AuthService();

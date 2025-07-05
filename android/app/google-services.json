@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "787078900732",
+    "project_id": "yotas-app",
+    "storage_bucket": "yotas-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:787078900732:android:78e5118c82e9ca57b7a079",
+        "android_client_info": {
+          "package_name": "com.yotas"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "787078900732-m6hflbubinifr6rn24gaqvisj15qmaae.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBglJvzBxSfpcUR9XBsiQ6lS9TU9aWuQBE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "787078900732-m6hflbubinifr6rn24gaqvisj15qmaae.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
