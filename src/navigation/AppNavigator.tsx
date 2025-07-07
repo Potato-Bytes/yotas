@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { NavigationState } from '@react-navigation/native';
 // import Icon from 'react-native-vector-icons/Ionicons';
 
 // Import screens (placeholders for now)
@@ -30,6 +31,19 @@ export type MainTabParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+// ナビゲーション状態のログ関数
+const onStateChange = (state: NavigationState | undefined) => {
+  if (state) {
+    const currentRoute = state.routes[state.index];
+    if (currentRoute.state) {
+      const tabState = currentRoute.state as NavigationState;
+      const currentTab = tabState.routes[tabState.index];
+      console.log('=== ナビゲーション変更 ===');
+      console.log('現在のタブ:', currentTab.name);
+    }
+  }
+};
 
 const MainTabs = () => (
   <Tab.Navigator
@@ -85,7 +99,7 @@ const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer onStateChange={onStateChange}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
           <Stack.Screen name="Main" component={MainTabs} />

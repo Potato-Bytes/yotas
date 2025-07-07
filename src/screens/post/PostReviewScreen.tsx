@@ -12,6 +12,9 @@ import {
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { MainTabParamList } from '../../navigation/AppNavigator';
 import { useToiletPost } from '../../hooks/useToiletPost';
 import {
   toiletTypeOptions,
@@ -24,7 +27,10 @@ import ImagePickerComponent from '../../components/post/ImagePicker';
 import StarRating from '../../components/common/StarRating';
 import { useLocation } from '../../hooks/useLocation';
 
+type PostReviewScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Post'>;
+
 const PostReviewScreen: React.FC = () => {
+  const navigation = useNavigation<PostReviewScreenNavigationProp>();
   const {
     form,
     isLoading,
@@ -47,6 +53,10 @@ const PostReviewScreen: React.FC = () => {
 
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [showEquipmentPicker, setShowEquipmentPicker] = useState<{
+    type: 'urinals' | 'westernToilets' | 'japaneseToilets' | null;
+    gender: 'male' | 'female' | 'shared';
+  }>({ type: null, gender: 'male' });
   const { getCurrentLocation } = useLocation();
 
   // 位置選択の確定
@@ -68,10 +78,19 @@ const PostReviewScreen: React.FC = () => {
     const success = await submitForm();
     if (success) {
       Alert.alert('投稿完了', 'トイレ情報が正常に投稿されました！', [
-        { text: 'OK', onPress: resetForm },
+        { text: 'OK', onPress: () => {
+          resetForm();
+          navigation.navigate('Map');
+        }},
       ]);
     }
-  }, [submitForm, resetForm]);
+  }, [submitForm, resetForm, navigation]);
+
+  // キャンセルボタンの処理
+  const handleCancel = useCallback(() => {
+    resetForm();
+    navigation.navigate('Map');
+  }, [resetForm, navigation]);
 
   const selectedTypeOption = toiletTypeOptions.find(option => option.value === form.type);
 
@@ -126,7 +145,7 @@ const PostReviewScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* ヘッダー */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={resetForm}>
+        <TouchableOpacity onPress={handleCancel}>
           <Icon name="close" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>トイレを投稿</Text>
@@ -187,7 +206,7 @@ const PostReviewScreen: React.FC = () => {
             <TouchableOpacity style={styles.picker} onPress={() => setShowLocationPicker(true)}>
               <Text style={styles.pickerText}>
                 {form.location
-                  ? `📍 ${form.location.latitude.toFixed(4)}, ${form.location.longitude.toFixed(4)}`
+                  ? '📍 現在位置'
                   : '位置を選択してください'}
               </Text>
               <Icon name="chevron-down" size={20} color="#666" />
@@ -205,7 +224,7 @@ const PostReviewScreen: React.FC = () => {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>男女区分</Text>
             <View style={styles.genderTypeContainer}>
-              {genderTypeOptions.map(option => (
+              {genderTypeOptions.filter(option => option.value !== 'multipurpose').map(option => (
                 <TouchableOpacity
                   key={option.value}
                   style={[
@@ -222,7 +241,7 @@ const PostReviewScreen: React.FC = () => {
                           ? { japaneseToilets: 0, westernToilets: 0 }
                           : null,
                       sharedEquipment:
-                        option.value !== 'separate'
+                        option.value === 'shared'
                           ? { japaneseToilets: 0, westernToilets: 0 }
                           : null,
                     })
@@ -245,15 +264,7 @@ const PostReviewScreen: React.FC = () => {
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '小便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateMaleEquipment({ urinals: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'urinals', gender: 'male' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -270,15 +281,7 @@ const PostReviewScreen: React.FC = () => {
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '洋式便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateMaleEquipment({ westernToilets: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'westernToilets', gender: 'male' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -304,15 +307,7 @@ const PostReviewScreen: React.FC = () => {
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '和式便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateFemaleEquipment({ japaneseToilets: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'japaneseToilets', gender: 'female' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -329,15 +324,7 @@ const PostReviewScreen: React.FC = () => {
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '洋式便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateFemaleEquipment({ westernToilets: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'westernToilets', gender: 'female' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -353,27 +340,17 @@ const PostReviewScreen: React.FC = () => {
             </View>
           )}
 
-          {/* 共用設備（共用・多目的の場合） */}
-          {form.toilets[0]?.detailedEquipment.genderType !== 'separate' && (
+          {/* 共用設備（共用の場合） */}
+          {form.toilets[0]?.detailedEquipment.genderType === 'shared' && (
             <View style={styles.equipmentSection}>
-              <Text style={styles.equipmentTitle}>
-                {form.toilets[0]?.detailedEquipment.genderType === 'shared' ? '🚽 共用設備' : '♿ 多目的設備'}
-              </Text>
+              <Text style={styles.equipmentTitle}>🚽 共用設備</Text>
               <View style={styles.equipmentRow}>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>和式便器</Text>
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '和式便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateSharedEquipment({ japaneseToilets: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'japaneseToilets', gender: 'shared' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -390,15 +367,7 @@ const PostReviewScreen: React.FC = () => {
                   <TouchableOpacity 
                     style={styles.countPicker}
                     onPress={() => {
-                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
-                      Alert.alert(
-                        '洋式便器数を選択',
-                        '',
-                        options.map((option, index) => ({
-                          text: option,
-                          onPress: () => updateSharedEquipment({ westernToilets: index })
-                        }))
-                      );
+                      setShowEquipmentPicker({ type: 'westernToilets', gender: 'shared' });
                     }}
                   >
                     <Text style={styles.countText}>
@@ -413,6 +382,65 @@ const PostReviewScreen: React.FC = () => {
               </View>
             </View>
           )}
+
+          {/* 付帯設備 */}
+          <View style={styles.additionalFacilities}>
+            <Text style={styles.equipmentTitle}>🏢 付帯設備</Text>
+            
+            <View style={styles.facilitySwitch}>
+              <Text style={styles.facilitySwitchLabel}>♿ 多目的トイレ</Text>
+              <Switch
+                value={form.toilets[0]?.detailedEquipment.additionalFeatures.hasWheelchairAccess || false}
+                onValueChange={value =>
+                  updateDetailedEquipment({
+                    ...form.toilets[0]?.detailedEquipment,
+                    additionalFeatures: {
+                      ...form.toilets[0]?.detailedEquipment.additionalFeatures,
+                      hasWheelchairAccess: value,
+                    },
+                  })
+                }
+                thumbColor="#fff"
+                trackColor={{ false: '#ccc', true: '#4285f4' }}
+              />
+            </View>
+
+            <View style={styles.facilitySwitch}>
+              <Text style={styles.facilitySwitchLabel}>👶 ベビーシート</Text>
+              <Switch
+                value={form.toilets[0]?.detailedEquipment.additionalFeatures.hasBabyChangingTable || false}
+                onValueChange={value =>
+                  updateDetailedEquipment({
+                    ...form.toilets[0]?.detailedEquipment,
+                    additionalFeatures: {
+                      ...form.toilets[0]?.detailedEquipment.additionalFeatures,
+                      hasBabyChangingTable: value,
+                    },
+                  })
+                }
+                thumbColor="#fff"
+                trackColor={{ false: '#ccc', true: '#4285f4' }}
+              />
+            </View>
+
+            <View style={styles.facilitySwitch}>
+              <Text style={styles.facilitySwitchLabel}>🚿 温水洗浄便座</Text>
+              <Switch
+                value={form.toilets[0]?.detailedEquipment.additionalFeatures.hasWashlet || false}
+                onValueChange={value =>
+                  updateDetailedEquipment({
+                    ...form.toilets[0]?.detailedEquipment,
+                    additionalFeatures: {
+                      ...form.toilets[0]?.detailedEquipment.additionalFeatures,
+                      hasWashlet: value,
+                    },
+                  })
+                }
+                thumbColor="#fff"
+                trackColor={{ false: '#ccc', true: '#4285f4' }}
+              />
+            </View>
+          </View>
 
         </View>
 
@@ -544,6 +572,46 @@ const PostReviewScreen: React.FC = () => {
                   {form.type === option.value && (
                     <Icon name="checkmark-circle" size={24} color="#4285f4" />
                   )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 設備数選択モーダル */}
+      <Modal visible={showEquipmentPicker.type !== null} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.equipmentPickerModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {showEquipmentPicker.type === 'urinals' && '小便器数を選択'}
+                {showEquipmentPicker.type === 'westernToilets' && '洋式便器数を選択'}
+                {showEquipmentPicker.type === 'japaneseToilets' && '和式便器数を選択'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowEquipmentPicker({ type: null, gender: 'male' })}>
+                <Icon name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                <TouchableOpacity
+                  key={num}
+                  style={styles.equipmentOption}
+                  onPress={() => {
+                    if (showEquipmentPicker.gender === 'male') {
+                      updateMaleEquipment({ [showEquipmentPicker.type!]: num });
+                    } else if (showEquipmentPicker.gender === 'female') {
+                      updateFemaleEquipment({ [showEquipmentPicker.type!]: num });
+                    } else {
+                      updateSharedEquipment({ [showEquipmentPicker.type!]: num });
+                    }
+                    setShowEquipmentPicker({ type: null, gender: 'male' });
+                  }}
+                >
+                  <Text style={styles.equipmentOptionText}>
+                    {num === 10 ? '10台以上' : `${num}台`}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -821,6 +889,41 @@ const styles = StyleSheet.create({
     color: '#333',
     textAlign: 'center',
     flex: 1,
+  },
+  additionalFacilities: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  facilitySwitch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  facilitySwitchLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  equipmentPickerModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '60%',
+  },
+  equipmentOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  equipmentOptionText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
   },
 });
 

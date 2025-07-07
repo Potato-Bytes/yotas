@@ -181,6 +181,11 @@ export class ReportService {
 
       return reports;
     } catch (error) {
+      // Firestoreインデックス作成中はエラーを抑制
+      if (error.code === 'firestore/failed-precondition') {
+        console.log('Firestore index is still being created for user reports query');
+        return [];
+      }
       console.error('Failed to get user reports:', error);
       return [];
     }
@@ -249,6 +254,11 @@ export class ReportService {
 
       return totalPoints;
     } catch (error) {
+      // Firestoreインデックス作成中はエラーを抑制
+      if (error.code === 'firestore/failed-precondition') {
+        console.log('Firestore index is still being created for violation points query');
+        return 0;
+      }
       console.error('Failed to get user violation points:', error);
       return 0;
     }
@@ -290,6 +300,11 @@ export class ReportService {
 
       return restrictions.filter(r => !r.endDate || r.endDate > new Date());
     } catch (error) {
+      // Firestoreインデックス作成中はエラーを抑制
+      if (error.code === 'firestore/failed-precondition') {
+        console.log('Firestore index is still being created for user restrictions query');
+        return [];
+      }
       console.error('Failed to get user restrictions:', error);
       return [];
     }
