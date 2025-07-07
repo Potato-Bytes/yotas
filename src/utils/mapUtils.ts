@@ -162,31 +162,59 @@ export const getToiletTypeColor = (type: ToiletType | string): string => {
   switch (normalizedType) {
     case ToiletType.PUBLIC:
     case 'public':
-      return '#4CAF50';
+      return '#66BB6A';
     case ToiletType.CONVENIENCE_STORE:
     case 'convenience':
     case 'convenience_store':
-      return '#FF9800';
+      return '#FFB74D';
     case ToiletType.STATION:
     case 'station':
-      return '#2196F3';
+      return '#42A5F5';
     case ToiletType.PARK:
     case 'park':
-      return '#8BC34A';
+      return '#9CCC65';
     case ToiletType.SHOPPING_MALL:
     case 'mall':
     case 'shopping_mall':
-      return '#9C27B0';
+      return '#BA68C8';
     case ToiletType.RESTAURANT:
     case 'restaurant':
-      return '#FF5722';
+      return '#FF7043';
     case ToiletType.GAS_STATION:
     case 'gas_station':
-      return '#795548';
+      return '#8D6E63';
     case ToiletType.OTHER:
     case 'other':
     default:
-      return '#607D8B';
+      return '#78909C';
+  }
+};
+
+/**
+ * 評価に基づいてトイレマーカーの色を取得
+ * @param rating 評価値 (1-5)
+ * @returns カラーコード
+ */
+export const getRatingBasedColor = (rating: number | undefined): string => {
+  if (!rating) {
+    return '#9E9E9E'; // 評価なしの場合はグレー
+  }
+  
+  // 評価を1-5の範囲に制限
+  const normalizedRating = Math.max(1, Math.min(5, rating));
+  
+  if (normalizedRating >= 4.5) {
+    return '#8BC34A'; // 明るい黄緑（非常に良い）
+  } else if (normalizedRating >= 4.0) {
+    return '#CDDC39'; // 黄緑（良い）
+  } else if (normalizedRating >= 3.5) {
+    return '#FFEB3B'; // 黄色（普通）
+  } else if (normalizedRating >= 3.0) {
+    return '#FF9800'; // オレンジ（やや悪い）
+  } else if (normalizedRating >= 2.5) {
+    return '#FF5722'; // 赤オレンジ（悪い）
+  } else {
+    return '#F44336'; // 赤（非常に悪い）
   }
 };
 

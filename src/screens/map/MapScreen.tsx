@@ -3,8 +3,9 @@ import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Region, Marker } from 'react-native-maps';
 import { useLocation } from '../../hooks/useLocation';
 import { DEFAULT_MAP_REGION, MapRegion, ToiletLocation } from '../../types/maps';
-import { getToiletIcon, getToiletTypeColor } from '../../utils/mapUtils';
+import { getToiletIcon, getRatingBasedColor } from '../../utils/mapUtils';
 import { sampleToilets } from '../../data/sampleToilets';
+import { brightMapStyle } from '../../constants/mapStyles';
 
 const MapScreen: React.FC = () => {
   const mapRef = useRef<MapView>(null);
@@ -90,6 +91,7 @@ const MapScreen: React.FC = () => {
           showsCompass={true}
           showsScale={true}
           mapType="standard"
+          customMapStyle={brightMapStyle}
           toolbarEnabled={false}
           moveOnMarkerPress={false}
         >
@@ -105,7 +107,7 @@ const MapScreen: React.FC = () => {
             description={toilet.description}
           >
             <View
-              style={[styles.markerContainer, { backgroundColor: getToiletTypeColor(toilet.type) }]}
+              style={[styles.markerContainer, { backgroundColor: getRatingBasedColor(toilet.rating) }]}
             >
               <Text style={styles.markerIcon}>{getToiletIcon(toilet.type)}</Text>
               {toilet.isAccessible && (

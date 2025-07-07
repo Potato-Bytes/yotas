@@ -10,6 +10,7 @@ import MapView, { PROVIDER_GOOGLE, Region, Marker } from 'react-native-maps';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Coordinate, DEFAULT_MAP_REGION } from '../../types/maps';
 import { useLocation } from '../../hooks/useLocation';
+import { brightMapStyle } from '../../constants/mapStyles';
 
 interface LocationPickerProps {
   selectedLocation: Coordinate | null;
@@ -129,6 +130,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           showsUserLocation={true}
           showsMyLocationButton={false}
           showsCompass={true}
+          customMapStyle={brightMapStyle}
         >
           {selectedLocation && (
             <Marker
