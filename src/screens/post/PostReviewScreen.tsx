@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,16 +15,14 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useToiletPost } from '../../hooks/useToiletPost';
 import {
   toiletTypeOptions,
-  facilityLabels,
-  facilityIcons,
   ratingCategories,
   genderTypeOptions,
-  DetailedToiletEquipment,
 } from '../../types/post';
 import { ToiletType } from '../../types/maps';
 import LocationPicker from '../../components/map/LocationPicker';
 import ImagePickerComponent from '../../components/post/ImagePicker';
 import StarRating from '../../components/common/StarRating';
+import { useLocation } from '../../hooks/useLocation';
 
 const PostReviewScreen: React.FC = () => {
   const {
@@ -32,11 +30,8 @@ const PostReviewScreen: React.FC = () => {
     isLoading,
     errors,
     updateTitle,
-    updateDescription,
     updateType,
-    updateAccessibility,
     updateLocation,
-    updateFacility,
     updateOpeningHours,
     updateAdditionalInfo,
     updateRating,
@@ -44,7 +39,6 @@ const PostReviewScreen: React.FC = () => {
     updateMaleEquipment,
     updateFemaleEquipment,
     updateSharedEquipment,
-    updateAdditionalFeatures,
     addImage,
     removeImage,
     submitForm,
@@ -53,6 +47,7 @@ const PostReviewScreen: React.FC = () => {
 
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const { getCurrentLocation } = useLocation();
 
   // 位置選択の確定
   const handleLocationConfirm = useCallback(() => {
@@ -79,6 +74,53 @@ const PostReviewScreen: React.FC = () => {
   }, [submitForm, resetForm]);
 
   const selectedTypeOption = toiletTypeOptions.find(option => option.value === form.type);
+
+  // 位置情報を自動で現在地に設定
+  useEffect(() => {
+    const setCurrentLocation = async () => {
+      if (!form.location) {
+        console.log('位置情報取得を開始します...');
+        
+        try {
+          const userLocation = await getCurrentLocation();
+          if (userLocation) {
+            console.log('位置情報取得成功:', userLocation);
+            updateLocation(userLocation);
+          } else {
+            // 位置情報が取得できなかった場合のデフォルト値（東京駅）
+            console.warn('位置情報を取得できなかったため、デフォルト位置を設定します');
+            updateLocation({
+              latitude: 35.6812,
+              longitude: 139.7671
+            });
+          }
+        } catch (error) {
+          console.error('位置情報の取得エラー:', error);
+          // エラー時もデフォルト位置を設定
+          updateLocation({
+            latitude: 35.6812,
+            longitude: 139.7671
+          });
+          
+          // タイムアウトの場合は特別なメッセージを表示
+          const isTimeout = error instanceof Error && error.message?.includes('タイムアウト');
+          
+          Alert.alert(
+            isTimeout ? '位置情報取得タイムアウト' : '位置情報エラー',
+            isTimeout 
+              ? '位置情報の取得に時間がかかっています。\n\n・屋外でアプリを使用していますか？\n・端末のGPS設定が有効になっていますか？\n\n一時的にデフォルト位置（東京駅）を設定しました。'
+              : '位置情報を取得できませんでした。手動で位置を設定してください。',
+            [
+              { text: 'OK' },
+              { text: '位置を手動設定', onPress: () => setShowLocationPicker(true) },
+              ...(isTimeout ? [{ text: '再試行', onPress: setCurrentLocation }] : [])
+            ]
+          );
+        }
+      }
+    };
+    setCurrentLocation();
+  }, [form.location, getCurrentLocation, updateLocation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -113,9 +155,9 @@ const PostReviewScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>基本情報</Text>
 
-          {/* タイトル */}
+          {/* トイレの場所 */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>タイトル *</Text>
+            <Text style={styles.label}>トイレの場所 *</Text>
             <TextInput
               style={styles.textInput}
               value={form.toilets[0]?.title || ''}
@@ -124,21 +166,6 @@ const PostReviewScreen: React.FC = () => {
               maxLength={50}
             />
             <Text style={styles.charCount}>{form.toilets[0]?.title.length || 0}/50</Text>
-          </View>
-
-          {/* 説明 */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>説明</Text>
-            <TextInput
-              style={[styles.textInput, styles.textArea]}
-              value={form.toilets[0]?.description || ''}
-              onChangeText={updateDescription}
-              placeholder="トイレの特徴や注意点など..."
-              multiline
-              numberOfLines={4}
-              maxLength={500}
-            />
-            <Text style={styles.charCount}>{form.toilets[0]?.description.length || 0}/500</Text>
           </View>
 
           {/* トイレタイプ */}
@@ -167,41 +194,8 @@ const PostReviewScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* アクセシビリティ */}
-          <View style={styles.switchGroup}>
-            <View style={styles.switchContent}>
-              <Icon name="accessibility" size={20} color="#4CAF50" style={styles.switchIcon} />
-              <Text style={styles.switchLabel}>バリアフリー対応</Text>
-            </View>
-            <Switch
-              value={form.toilets[0]?.isAccessible || false}
-              onValueChange={updateAccessibility}
-              thumbColor="#fff"
-              trackColor={{ false: '#ccc', true: '#4CAF50' }}
-            />
-          </View>
         </View>
 
-        {/* 設備情報 */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>設備情報</Text>
-          {Object.entries(facilityLabels).map(([key, label]) => (
-            <View key={key} style={styles.switchGroup}>
-              <View style={styles.switchContent}>
-                <Text style={styles.switchIcon}>
-                  {facilityIcons[key as keyof typeof facilityIcons]}
-                </Text>
-                <Text style={styles.switchLabel}>{label}</Text>
-              </View>
-              <Switch
-                value={form.toilets[0]?.facilities[key as keyof typeof facilityLabels] || false}
-                onValueChange={(value: boolean) => updateFacility(key, value)}
-                thumbColor="#fff"
-                trackColor={{ false: '#ccc', true: '#4285f4' }}
-              />
-            </View>
-          ))}
-        </View>
 
         {/* 詳細設備情報 */}
         <View style={styles.section}>
@@ -248,27 +242,53 @@ const PostReviewScreen: React.FC = () => {
               <View style={styles.equipmentRow}>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>小便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={form.toilets[0]?.detailedEquipment.maleEquipment?.urinals?.toString() || '0'}
-                    onChangeText={text => updateMaleEquipment({ urinals: parseInt(text) || 0 })}
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '小便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateMaleEquipment({ urinals: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.maleEquipment?.urinals === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.maleEquipment?.urinals || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>洋式便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={form.toilets[0]?.detailedEquipment.maleEquipment?.westernToilets?.toString() || '0'}
-                    onChangeText={text =>
-                      updateMaleEquipment({ westernToilets: parseInt(text) || 0 })
-                    }
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '洋式便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateMaleEquipment({ westernToilets: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.maleEquipment?.westernToilets === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.maleEquipment?.westernToilets || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -281,33 +301,53 @@ const PostReviewScreen: React.FC = () => {
               <View style={styles.equipmentRow}>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>和式便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={
-                      form.toilets[0]?.detailedEquipment.femaleEquipment?.japaneseToilets?.toString() || '0'
-                    }
-                    onChangeText={text =>
-                      updateFemaleEquipment({ japaneseToilets: parseInt(text) || 0 })
-                    }
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '和式便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateFemaleEquipment({ japaneseToilets: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.femaleEquipment?.japaneseToilets === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.femaleEquipment?.japaneseToilets || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>洋式便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={
-                      form.toilets[0]?.detailedEquipment.femaleEquipment?.westernToilets?.toString() || '0'
-                    }
-                    onChangeText={text =>
-                      updateFemaleEquipment({ westernToilets: parseInt(text) || 0 })
-                    }
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '洋式便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateFemaleEquipment({ westernToilets: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.femaleEquipment?.westernToilets === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.femaleEquipment?.westernToilets || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -322,70 +362,58 @@ const PostReviewScreen: React.FC = () => {
               <View style={styles.equipmentRow}>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>和式便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={
-                      form.toilets[0]?.detailedEquipment.sharedEquipment?.japaneseToilets?.toString() || '0'
-                    }
-                    onChangeText={text =>
-                      updateSharedEquipment({ japaneseToilets: parseInt(text) || 0 })
-                    }
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '和式便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateSharedEquipment({ japaneseToilets: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.sharedEquipment?.japaneseToilets === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.sharedEquipment?.japaneseToilets || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.equipmentItem}>
                   <Text style={styles.equipmentLabel}>洋式便器</Text>
-                  <TextInput
-                    style={styles.numberInput}
-                    value={
-                      form.toilets[0]?.detailedEquipment.sharedEquipment?.westernToilets?.toString() || '0'
-                    }
-                    onChangeText={text =>
-                      updateSharedEquipment({ westernToilets: parseInt(text) || 0 })
-                    }
-                    keyboardType="numeric"
-                    placeholder="0"
-                  />
-                  <Text style={styles.equipmentUnit}>台</Text>
+                  <TouchableOpacity 
+                    style={styles.countPicker}
+                    onPress={() => {
+                      const options = ['0台', '1台', '2台', '3台', '4台', '5台', '6台', '7台', '8台', '9台', '10台以上'];
+                      Alert.alert(
+                        '洋式便器数を選択',
+                        '',
+                        options.map((option, index) => ({
+                          text: option,
+                          onPress: () => updateSharedEquipment({ westernToilets: index })
+                        }))
+                      );
+                    }}
+                  >
+                    <Text style={styles.countText}>
+                      {form.toilets[0]?.detailedEquipment.sharedEquipment?.westernToilets === 10 
+                        ? '10台以上' 
+                        : `${form.toilets[0]?.detailedEquipment.sharedEquipment?.westernToilets || 0}台`
+                      }
+                    </Text>
+                    <Icon name="chevron-down" size={16} color="#666" />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
           )}
 
-          {/* 追加設備 */}
-          <View style={styles.equipmentSection}>
-            <Text style={styles.equipmentTitle}>🔧 追加設備</Text>
-            {Object.entries({
-              hasBabyChangingTable: 'おむつ替え台',
-              hasHandDryer: 'ハンドドライヤー',
-              hasWashlet: 'ウォシュレット',
-              hasPaperTowels: 'ペーパータオル',
-              hasHandSoap: 'ハンドソープ',
-              hasVendingMachine: '自動販売機',
-              hasWheelchairAccess: '車椅子対応',
-            }).map(([key, label]) => (
-              <View key={key} style={styles.switchGroup}>
-                <Text style={styles.switchLabel}>{label}</Text>
-                <Switch
-                  value={
-                    form.toilets[0]?.detailedEquipment.additionalFeatures[
-                      key as keyof DetailedToiletEquipment['additionalFeatures']
-                    ] || false
-                  }
-                  onValueChange={value =>
-                    updateAdditionalFeatures(
-                      key as keyof DetailedToiletEquipment['additionalFeatures'],
-                      value,
-                    )
-                  }
-                  thumbColor="#fff"
-                  trackColor={{ false: '#ccc', true: '#4285f4' }}
-                />
-              </View>
-            ))}
-          </View>
         </View>
 
         {/* 営業時間 */}
@@ -775,6 +803,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 4,
+  },
+  countPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    minWidth: 80,
+  },
+  countText: {
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+    flex: 1,
   },
 });
 

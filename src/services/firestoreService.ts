@@ -59,7 +59,6 @@ export class FirestoreService {
         title: form.facilityTitle,
         description: form.facilityDescription,
         type: form.type,
-        isAccessible: firstToilet.isAccessible,
         location: {
           latitude: form.location!.latitude,
           longitude: form.location!.longitude,

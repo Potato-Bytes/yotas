@@ -20,11 +20,9 @@ export interface ToiletPostForm {
 // 個別のトイレ情報
 export interface ToiletInfo {
   id: string; // トイレID（ランダム生成）
-  title: string; // トイレ名（例: 1階男性用トイレ）
-  description: string; // トイレの説明
+  title: string; // トイレの場所（例: 1階男性用トイレ）
   floor?: string; // 階数（例: 1F, B1）
   location?: string; // 位置（例: 改札内、北口近く）
-  isAccessible: boolean; // バリアフリー対応
   images: string[]; // トイレの画像
   facilities: ToiletFacilities; // 基本設備
   detailedEquipment: DetailedToiletEquipment; // 詳細設備
@@ -98,10 +96,8 @@ export interface ToiletRatings {
 export const initialToiletInfo: ToiletInfo = {
   id: '',
   title: '',
-  description: '',
   floor: '',
   location: '',
-  isAccessible: false,
   images: [],
   facilities: {
     hasWashlet: false,
@@ -205,11 +201,7 @@ export const validateToiletPost = (
     }
 
     if (toilet.title.length > 50) {
-      errors.push(`トイレ${index + 1}: タイトルは50文字以内で入力してください`);
-    }
-
-    if (toilet.description.length > 500) {
-      errors.push(`トイレ${index + 1}: 説明は500文字以内で入力してください`);
+      errors.push(`トイレ${index + 1}: トイレの場所は50文字以内で入力してください`);
     }
   });
 

@@ -26,9 +26,9 @@ export const useLocation = (options: UseLocationOptions = {}) => {
   });
 
   const {
-    enableHighAccuracy = true,
-    timeout = 15000,
-    maximumAge = 10000,
+    enableHighAccuracy = false, // 初回は速度優先
+    timeout = 30000, // 30秒に延長
+    maximumAge = 60000, // 1分のキャッシュを許可
     watchPosition = false,
   } = options;
 
@@ -36,17 +36,44 @@ export const useLocation = (options: UseLocationOptions = {}) => {
   const requestLocationPermission = useCallback(async (): Promise<boolean> => {
     try {
       if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
+        // まず現在の権限状況をチェック
+        const fineLocationCheck = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        );
+        
+        if (fineLocationCheck) {
+          return true;
+        }
+
+        // 権限がない場合、リクエスト
+        const fineLocationRequest = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
             title: '位置情報の許可',
-            message: 'yotasが位置情報にアクセスすることを許可してください。',
+            message: 'yotasが現在位置を取得するために位置情報の許可が必要です。',
             buttonNeutral: '後で',
             buttonNegative: 'キャンセル',
             buttonPositive: 'OK',
           },
         );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
+
+        if (fineLocationRequest === PermissionsAndroid.RESULTS.GRANTED) {
+          return true;
+        }
+
+        // FINE_LOCATIONが拒否された場合、COARSE_LOCATIONを試す
+        const coarseLocationRequest = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+          {
+            title: 'おおよその位置情報の許可',
+            message: 'おおよその位置情報の許可でも機能します。',
+            buttonNeutral: '後で',
+            buttonNegative: 'キャンセル',
+            buttonPositive: 'OK',
+          },
+        );
+
+        return coarseLocationRequest === PermissionsAndroid.RESULTS.GRANTED;
       } else {
         // iOSの場合、Info.plistの設定により自動で権限ダイアログが表示される
         return true;
@@ -77,36 +104,99 @@ export const useLocation = (options: UseLocationOptions = {}) => {
       setState(prev => ({ ...prev, hasPermission: true }));
 
       return new Promise((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          position => {
-            const location: Coordinate = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
+        // まずGeolocationがAndroidで正しく動作するように設定
+        if (Platform.OS === 'android') {
+          Geolocation.setRNConfiguration({
+            skipPermissionRequests: false,
+            authorizationLevel: 'whenInUse',
+            enableBackgroundLocationUpdates: false,
+            locationProvider: 'android'
+          });
+        }
 
+        // 最初は低精度で素早く取得を試みる
+        const tryGetLocation = (highAccuracy: boolean, timeoutMs: number) => {
+          return new Promise<Coordinate>((resolveInner, rejectInner) => {
+            Geolocation.getCurrentPosition(
+              position => {
+                const location: Coordinate = {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                };
+                resolveInner(location);
+              },
+              error => rejectInner(error),
+              {
+                enableHighAccuracy: highAccuracy,
+                timeout: timeoutMs,
+                maximumAge: maximumAge
+              }
+            );
+          });
+        };
+
+        // 段階的に精度を上げて試行
+        const attemptLocation = async () => {
+          try {
+            // 1回目: 低精度で素早く(10秒)
+            console.log('位置取得試行 1: 低精度モード');
+            const location = await tryGetLocation(false, 10000);
+            return location;
+          } catch (error1) {
+            console.log('低精度で失敗、高精度で再試行');
+            try {
+              // 2回目: 高精度で再試行(20秒)
+              console.log('位置取得試行 2: 高精度モード');
+              const location = await tryGetLocation(true, 20000);
+              return location;
+            } catch (error2) {
+              console.log('高精度でも失敗、最終試行');
+              try {
+                // 3回目: キャッシュを使用して最終試行(5秒)
+                console.log('位置取得試行 3: キャッシュ使用');
+                const location = await tryGetLocation(false, 5000);
+                return location;
+              } catch (error3) {
+                // すべての試行が失敗
+                throw error3;
+              }
+            }
+          }
+        };
+
+        attemptLocation()
+          .then(location => {
             setState(prev => ({
               ...prev,
               location,
               isLoading: false,
               error: null,
             }));
-
             resolve(location);
-          },
-          error => {
-            console.error('Geolocation error:', error);
+          })
+          .catch(error => {
+            console.error('Geolocation error details:', {
+              code: error.code,
+              message: error.message,
+              PERMISSION_DENIED: error.PERMISSION_DENIED,
+              POSITION_UNAVAILABLE: error.POSITION_UNAVAILABLE,
+              TIMEOUT: error.TIMEOUT
+            });
+            
             let errorMessage = '位置情報の取得に失敗しました';
 
             switch (error.code) {
-              case 1:
-                errorMessage = '位置情報の許可が拒否されました';
+              case 1: // PERMISSION_DENIED
+                errorMessage = '位置情報の許可が拒否されました。設定から許可してください。';
                 break;
-              case 2:
-                errorMessage = '位置情報が利用できません';
+              case 2: // POSITION_UNAVAILABLE
+                errorMessage = '位置情報サービスが利用できません。GPSを有効にしてください。';
                 break;
-              case 3:
-                errorMessage = '位置情報の取得がタイムアウトしました';
+              case 3: // TIMEOUT
+                errorMessage = '位置情報の取得がタイムアウトしました。屋外で再試行してください。';
                 break;
+              default:
+                errorMessage = `位置情報エラー: ${error.message || '未知のエラー'}`;
             }
 
             setState(prev => ({
@@ -116,13 +206,7 @@ export const useLocation = (options: UseLocationOptions = {}) => {
             }));
 
             reject(new Error(errorMessage));
-          },
-          {
-            enableHighAccuracy,
-            timeout,
-            maximumAge,
-          },
-        );
+          });
       });
     } catch (error) {
       const errorMessage = '位置情報の取得に失敗しました';
