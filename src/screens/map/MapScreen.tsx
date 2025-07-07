@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Region, Marker } from 'react-native-maps';
+import { debounce } from 'lodash';
 import { useLocation } from '../../hooks/useLocation';
 import { useFocusEffect } from '@react-navigation/native';
 import { DEFAULT_MAP_REGION, MapRegion, ToiletLocation } from '../../types/maps';
@@ -8,6 +9,7 @@ import { getToiletIcon, getRatingBasedColor } from '../../utils/mapUtils';
 import { sampleToilets } from '../../data/sampleToilets';
 import { brightMapStyle } from '../../constants/mapStyles';
 import { useMapPositionStore } from '../../stores/mapPositionStore';
+import { useMapStore } from '../../stores/mapStore';
 
 const MapScreen: React.FC = () => {
   const mapRef = useRef<MapView>(null);
@@ -56,6 +58,15 @@ const MapScreen: React.FC = () => {
     hasValidPosition 
   } = useMapPositionStore();
 
+  // 統合されたmapStoreも使用
+  const {
+    lastMapRegion,
+    userLocation: storedUserLocation,
+    setLastMapRegion,
+    setUserLocation: setStoredUserLocation,
+    setLocationEnabled,
+  } = useMapStore();
+
   // 現在位置に移動（シンプル版）
   const moveToCurrentLocation = useCallback(async () => {
     console.log('=== 現在位置取得開始 ===');
@@ -77,6 +88,8 @@ const MapScreen: React.FC = () => {
         // 直接設定（nullをセットしない）
         setSafeCurrentRegion(region);
         setUserLocation(currentUserLocation);
+        setStoredUserLocation(currentUserLocation); // 統合ストアにも保存
+        setLocationEnabled(true); // 位置情報が有効であることを記録
         setIsFollowingUser(true);
         setIsInitialLoad(false);
         
@@ -91,7 +104,17 @@ const MapScreen: React.FC = () => {
     } catch (error) {
       console.error('現在位置取得エラー:', error);
     }
-  }, [getCurrentLocation, isMapReady, setSafeCurrentRegion]);
+  }, [getCurrentLocation, isMapReady, setSafeCurrentRegion, setStoredUserLocation, setLocationEnabled]);
+
+  // デバウンス機能付きの地域保存処理
+  const debouncedSaveRegion = useCallback(
+    debounce((region: MapRegion) => {
+      console.log('デバウンス後の位置保存:', region);
+      setCurrentMapPosition(region);
+      setLastMapRegion(region);
+    }, 500),
+    [setCurrentMapPosition, setLastMapRegion]
+  );
 
   // 地図の領域変更時の処理
   const handleRegionChangeComplete = useCallback((region: Region) => {
@@ -104,16 +127,16 @@ const MapScreen: React.FC = () => {
     };
     setSafeCurrentRegion(newRegion);
     
-    // 初期読み込み完了後のユーザー操作のみ位置を保存
+    // 初期読み込み完了後のユーザー操作のみ位置を保存（デバウンス）
     if (!isInitialLoad) {
-      console.log('位置を保存中:', newRegion);
-      setCurrentMapPosition(newRegion);
+      console.log('位置保存をデバウンス中:', newRegion);
+      debouncedSaveRegion(newRegion);
     } else {
       console.log('初期読み込み中のため位置保存をスキップ');
     }
     
     setIsFollowingUser(false);
-  }, [isInitialLoad, setCurrentMapPosition, setSafeCurrentRegion]);
+  }, [isInitialLoad, debouncedSaveRegion, setSafeCurrentRegion]);
 
   // 初期化
   useEffect(() => {
@@ -136,26 +159,44 @@ const MapScreen: React.FC = () => {
     useCallback(() => {
       console.log('=== マップ画面にフォーカスが当たりました ===');
       console.log('現在のリージョン:', currentRegion);
-      console.log('保存された位置:', currentMapPosition);
+      console.log('統合ストア - 最後の位置:', lastMapRegion);
+      console.log('メモリストア - 保存された位置:', currentMapPosition);
       console.log('有効な位置があるか:', hasValidPosition());
       
-      // 保存された位置がある場合はそれを復元、なければ現在位置を取得
-      if (hasValidPosition() && currentMapPosition && !currentRegion) {
-        console.log('保存された位置を復元:', currentMapPosition);
-        setSafeCurrentRegion(currentMapPosition);
+      // 統合ストアの位置を優先的に復元
+      const savedRegion = lastMapRegion || currentMapPosition;
+      
+      if (savedRegion && !currentRegion) {
+        console.log('保存された位置を復元:', savedRegion);
+        setSafeCurrentRegion(savedRegion);
         setIsInitialLoad(false);
+        
+        // 保存されたユーザー位置も復元
+        if (storedUserLocation) {
+          setUserLocation(storedUserLocation);
+        }
         
         // マップが準備完了後にアニメーション
         if (mapRef.current && isMapReady) {
           setTimeout(() => {
-            mapRef.current?.animateToRegion(currentMapPosition, 500);
+            mapRef.current?.animateToRegion(savedRegion, 500);
           }, 100);
         }
       } else if (!currentRegion) {
         console.log('保存された位置がないため現在位置を取得');
         moveToCurrentLocation();
       }
-    }, [currentRegion, currentMapPosition, hasValidPosition, moveToCurrentLocation, setSafeCurrentRegion, isMapReady])
+    }, [
+      currentRegion, 
+      lastMapRegion, 
+      currentMapPosition, 
+      storedUserLocation,
+      hasValidPosition, 
+      moveToCurrentLocation, 
+      setSafeCurrentRegion, 
+      setUserLocation,
+      isMapReady
+    ])
   );
 
   return (

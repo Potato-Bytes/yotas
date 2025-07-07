@@ -67,6 +67,7 @@ const MainTabs = () => (
       },
       tabBarActiveTintColor: '#007AFF',
       tabBarInactiveTintColor: 'gray',
+      unmountOnBlur: false, // タブ切り替え時も状態を保持
     })}
   >
     <Tab.Screen name="Map" component={MapScreen} options={{ title: 'マップ' }} />

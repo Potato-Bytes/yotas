@@ -28,8 +28,13 @@ const guineaLat = 9.9456;
 
 interface MapState {
   lastMapRegion: MapRegion | null;
+  userLocation: { latitude: number; longitude: number } | null;
+  isLocationEnabled: boolean;
   setLastMapRegion: (region: MapRegion | null) => void;
+  setUserLocation: (location: { latitude: number; longitude: number } | null) => void;
+  setLocationEnabled: (enabled: boolean) => void;
   clearLastMapRegion: () => void;
+  resetMapState: () => void;
   forceResetStorage: () => Promise<void>;
 }
 
@@ -37,6 +42,9 @@ export const useMapStore = create<MapState>()(
   persist(
     (set) => ({
       lastMapRegion: null,
+      userLocation: null,
+      isLocationEnabled: false,
+      
       setLastMapRegion: (region) => {
         // 座標が有効かチェック
         if (
@@ -68,12 +76,30 @@ export const useMapStore = create<MapState>()(
           console.warn('無効なマップ領域のため保存をスキップ:', region);
         }
       },
+      
+      setUserLocation: (location) => {
+        console.log('ユーザー位置を更新:', location);
+        set({ userLocation: location });
+      },
+      
+      setLocationEnabled: (enabled) => {
+        console.log('位置情報有効化状態を更新:', enabled);
+        set({ isLocationEnabled: enabled });
+      },
+      
       clearLastMapRegion: () => set({ lastMapRegion: null }),
+      
+      resetMapState: () => set({
+        lastMapRegion: null,
+        userLocation: null,
+        isLocationEnabled: false,
+      }),
+      
       forceResetStorage: async () => {
         try {
           await AsyncStorage.removeItem('map-storage');
           console.log('AsyncStorageのマップデータを完全削除しました');
-          set({ lastMapRegion: null });
+          set({ lastMapRegion: null, userLocation: null, isLocationEnabled: false });
         } catch (error) {
           console.error('AsyncStorageのクリアに失敗:', error);
         }
@@ -82,6 +108,10 @@ export const useMapStore = create<MapState>()(
     {
       name: 'map-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        lastMapRegion: state.lastMapRegion,
+        userLocation: state.userLocation,
+      }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
           console.error('AsyncStorageからのデータ復元エラー:', error);
@@ -99,7 +129,7 @@ export const useMapStore = create<MapState>()(
               AsyncStorage.clear().then(() => {
                 console.log('無効な座標を含むAsyncStorageを全削除しました');
               });
-              return { lastMapRegion: null };
+              return { lastMapRegion: null, userLocation: null };
             }
           }
         }
