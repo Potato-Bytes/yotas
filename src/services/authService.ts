@@ -1,4 +1,12 @@
-import auth from '@react-native-firebase/auth';
+import { 
+  getAuth, 
+  onAuthStateChanged, 
+  signInWithCredential, 
+  signOut,
+  GoogleAuthProvider,
+  User as FirebaseUser
+} from '@react-native-firebase/auth';
+import { getApp } from '@react-native-firebase/app';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 export interface User {
@@ -9,7 +17,11 @@ export interface User {
 }
 
 class AuthService {
+  private auth;
+
   constructor() {
+    const app = getApp();
+    this.auth = getAuth(app);
     this.configureGoogleSignIn();
   }
 
@@ -39,11 +51,11 @@ class AuthService {
 
       // Google認証情報を作成
       console.log('Creating Firebase credential...');
-      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      const googleCredential = GoogleAuthProvider.credential(idToken);
 
       // Firebase にサインイン
       console.log('Signing in with Firebase...');
-      const userCredential = await auth().signInWithCredential(googleCredential);
+      const userCredential = await signInWithCredential(this.auth, googleCredential);
 
       return this.formatUser(userCredential.user);
     } catch (error: unknown) {
@@ -72,7 +84,7 @@ class AuthService {
   async signOut(): Promise<void> {
     try {
       // Firebase からサインアウト
-      await auth().signOut();
+      await signOut(this.auth);
 
       // Google からもサインアウト
       await GoogleSignin.signOut();
@@ -87,7 +99,7 @@ class AuthService {
    */
   onAuthStateChanged(callback: (user: User | null) => void): () => void {
     try {
-      return auth().onAuthStateChanged(firebaseUser => {
+      return onAuthStateChanged(this.auth, firebaseUser => {
         try {
           if (firebaseUser) {
             callback(this.formatUser(firebaseUser));
@@ -111,7 +123,7 @@ class AuthService {
    */
   getCurrentUser(): User | null {
     try {
-      const firebaseUser = auth().currentUser;
+      const firebaseUser = this.auth.currentUser;
       return firebaseUser ? this.formatUser(firebaseUser) : null;
     } catch (error) {
       console.log('authService: getCurrentUser でエラー:', error);
@@ -122,7 +134,7 @@ class AuthService {
   /**
    * Firebase Userオブジェクトを標準形式に変換
    */
-  private formatUser(firebaseUser: any): User {
+  private formatUser(firebaseUser: FirebaseUser): User {
     return {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
@@ -136,7 +148,7 @@ class AuthService {
    */
   async deleteAccount(): Promise<void> {
     try {
-      const user = auth().currentUser;
+      const user = this.auth.currentUser;
       if (user) {
         await user.delete();
         await GoogleSignin.signOut();
@@ -151,7 +163,7 @@ class AuthService {
    * ユーザーがサインインしているかチェック
    */
   isSignedIn(): boolean {
-    return auth().currentUser !== null;
+    return this.auth.currentUser !== null;
   }
 }
 

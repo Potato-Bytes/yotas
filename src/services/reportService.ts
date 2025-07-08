@@ -1,4 +1,19 @@
-import firestore from '@react-native-firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  query, 
+  where, 
+  getDocs, 
+  getDoc,
+  setDoc,
+  updateDoc,
+  addDoc,
+  Timestamp,
+  orderBy,
+  limit
+} from '@react-native-firebase/firestore';
+import { getApp } from '@react-native-firebase/app';
 import {
   Report,
   ReportTargetType,
@@ -13,20 +28,27 @@ import {
 } from '../types/post';
 
 export class ReportService {
+  private db;
+
+  constructor() {
+    const app = getApp();
+    this.db = getFirestore(app);
+  }
+
   private get reportsCollection() {
-    return firestore().collection('reports');
+    return collection(this.db, 'reports');
   }
   
   private get restrictionsCollection() {
-    return firestore().collection('user_restrictions');
+    return collection(this.db, 'user_restrictions');
   }
   
   private get violationsCollection() {
-    return firestore().collection('violation_records');
+    return collection(this.db, 'violation_records');
   }
   
   private get configCollection() {
-    return firestore().collection('system_config');
+    return collection(this.db, 'system_config');
   }
 
   // 自動制限設定（デフォルト値）
@@ -74,19 +96,22 @@ export class ReportService {
   ): Promise<void> {
     try {
       // 同じ対象に対する重複通報をチェック
-      const existingReport = await this.reportsCollection
-        .where('reporterId', '==', reporterId)
-        .where('targetType', '==', targetType)
-        .where('targetId', '==', targetId)
-        .where('status', 'in', [ReportStatus.PENDING, ReportStatus.UNDER_REVIEW])
-        .get();
+      const existingReportQuery = query(
+        this.reportsCollection,
+        where('reporterId', '==', reporterId),
+        where('targetType', '==', targetType),
+        where('targetId', '==', targetId),
+        where('status', 'in', [ReportStatus.PENDING, ReportStatus.UNDER_REVIEW])
+      );
+      const existingReport = await getDocs(existingReportQuery);
 
       if (!existingReport.empty) {
         throw new Error('この対象は既に通報済みです');
       }
 
+      const reportDocRef = doc(this.reportsCollection);
       const reportData: Report = {
-        id: this.reportsCollection.doc().id,
+        id: reportDocRef.id,
         reporterId,
         targetType,
         targetId,
@@ -97,9 +122,9 @@ export class ReportService {
         createdAt: new Date(),
       };
 
-      await this.reportsCollection.add({
+      await addDoc(this.reportsCollection, {
         ...reportData,
-        createdAt: firestore.Timestamp.now(),
+        createdAt: Timestamp.now(),
       });
 
       // 自動検出ロジックの実行
@@ -113,15 +138,16 @@ export class ReportService {
   /**
    * 通報一覧を取得（管理者用）
    */
-  async getReports(status?: ReportStatus, limit: number = 50): Promise<Report[]> {
+  async getReports(status?: ReportStatus, limitCount: number = 50): Promise<Report[]> {
     try {
-      let query = this.reportsCollection.orderBy('createdAt', 'desc');
+      let reportQuery = query(this.reportsCollection, orderBy('createdAt', 'desc'));
 
       if (status) {
-        query = query.where('status', '==', status);
+        reportQuery = query(this.reportsCollection, where('status', '==', status), orderBy('createdAt', 'desc'));
       }
 
-      const snapshot = await query.limit(limit).get();
+      reportQuery = query(reportQuery, limit(limitCount));
+      const snapshot = await getDocs(reportQuery);
 
       const reports: Report[] = [];
       snapshot.forEach(doc => {
@@ -154,11 +180,13 @@ export class ReportService {
    */
   async getUserReports(userId: string): Promise<Report[]> {
     try {
-      const snapshot = await this.reportsCollection
-        .where('reporterId', '==', userId)
-        .orderBy('createdAt', 'desc')
-        .limit(20)
-        .get();
+      const userReportsQuery = query(
+        this.reportsCollection,
+        where('reporterId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+      const snapshot = await getDocs(userReportsQuery);
 
       const reports: Report[] = [];
       snapshot.forEach(doc => {
@@ -208,8 +236,9 @@ export class ReportService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + this.defaultConfig.pointExpirationDays);
 
+      const violationDocRef = doc(this.violationsCollection);
       const violationData: ViolationRecord = {
-        id: this.violationsCollection.doc().id,
+        id: violationDocRef.id,
         userId,
         type,
         severity,
@@ -222,10 +251,10 @@ export class ReportService {
         expiresAt,
       };
 
-      await this.violationsCollection.add({
+      await addDoc(this.violationsCollection, {
         ...violationData,
-        createdAt: firestore.Timestamp.now(),
-        expiresAt: firestore.Timestamp.fromDate(expiresAt),
+        createdAt: Timestamp.now(),
+        expiresAt: Timestamp.fromDate(expiresAt),
       });
 
       // 自動制限判定
@@ -241,10 +270,12 @@ export class ReportService {
    */
   async getUserViolationPoints(userId: string): Promise<number> {
     try {
-      const snapshot = await this.violationsCollection
-        .where('userId', '==', userId)
-        .where('expiresAt', '>', firestore.Timestamp.now())
-        .get();
+      const violationsQuery = query(
+        this.violationsCollection,
+        where('userId', '==', userId),
+        where('expiresAt', '>', Timestamp.now())
+      );
+      const snapshot = await getDocs(violationsQuery);
 
       let totalPoints = 0;
       snapshot.forEach(doc => {
@@ -269,11 +300,13 @@ export class ReportService {
    */
   async getUserRestrictions(userId: string): Promise<UserRestriction[]> {
     try {
-      const snapshot = await this.restrictionsCollection
-        .where('userId', '==', userId)
-        .where('isActive', '==', true)
-        .orderBy('startDate', 'desc')
-        .get();
+      const restrictionsQuery = query(
+        this.restrictionsCollection,
+        where('userId', '==', userId),
+        where('isActive', '==', true),
+        orderBy('startDate', 'desc')
+      );
+      const snapshot = await getDocs(restrictionsQuery);
 
       const restrictions: UserRestriction[] = [];
       snapshot.forEach(doc => {
@@ -326,8 +359,9 @@ export class ReportService {
         ? new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000)
         : undefined;
 
+      const restrictionDocRef = doc(this.restrictionsCollection);
       const restrictionData: UserRestriction = {
-        id: this.restrictionsCollection.doc().id,
+        id: restrictionDocRef.id,
         userId,
         type,
         reason,
@@ -338,10 +372,10 @@ export class ReportService {
         details,
       };
 
-      await this.restrictionsCollection.add({
+      await addDoc(this.restrictionsCollection, {
         ...restrictionData,
-        startDate: firestore.Timestamp.fromDate(startDate),
-        endDate: endDate ? firestore.Timestamp.fromDate(endDate) : null,
+        startDate: Timestamp.fromDate(startDate),
+        endDate: endDate ? Timestamp.fromDate(endDate) : null,
       });
 
       // TODO: プッシュ通知でユーザーに制限を通知
@@ -355,7 +389,8 @@ export class ReportService {
    */
   private async deactivateRestriction(restrictionId: string): Promise<void> {
     try {
-      await this.restrictionsCollection.doc(restrictionId).update({
+      const restrictionRef = doc(this.restrictionsCollection, restrictionId);
+      await updateDoc(restrictionRef, {
         isActive: false,
       });
     } catch (error) {
@@ -465,11 +500,13 @@ export class ReportService {
     targetId: string,
   ): Promise<number> {
     try {
-      const snapshot = await this.reportsCollection
-        .where('targetType', '==', targetType)
-        .where('targetId', '==', targetId)
-        .where('status', '!=', ReportStatus.DISMISSED)
-        .get();
+      const reportCountQuery = query(
+        this.reportsCollection,
+        where('targetType', '==', targetType),
+        where('targetId', '==', targetId),
+        where('status', '!=', ReportStatus.DISMISSED)
+      );
+      const snapshot = await getDocs(reportCountQuery);
 
       return snapshot.size;
     } catch (error) {
@@ -503,10 +540,11 @@ export class ReportService {
           return null;
       }
 
-      const doc = await firestore().collection(collection).doc(targetId).get();
+      const targetDocRef = doc(this.db, collection, targetId);
+      const targetDoc = await getDoc(targetDocRef);
 
-      if (doc.exists()) {
-        const data = doc.data()!;
+      if (targetDoc.exists()) {
+        const data = targetDoc.data()!;
         return data.userId || data.authorId || null;
       }
 

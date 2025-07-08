@@ -1,11 +1,38 @@
-import firestore from '@react-native-firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  Timestamp,
+  GeoPoint
+} from '@react-native-firebase/firestore';
 import storage from '@react-native-firebase/storage';
+import { getApp } from '@react-native-firebase/app';
 import { ToiletPostForm } from '../types/post';
 import { ToiletLocation } from '../types/maps';
 
 export class FirestoreService {
-  private toiletsCollection = firestore().collection('toilets');
-  private imagesRef = storage().ref('toilet-images');
+  private db;
+
+  constructor() {
+    const app = getApp();
+    this.db = getFirestore(app);
+  }
+
+  private get toiletsCollection() {
+    return collection(this.db, 'toilets');
+  }
+  
+  private get imagesRef() {
+    return storage().ref('toilet-images');
+  }
 
   /**
    * 画像をFirebase Storageにアップロード
@@ -32,7 +59,7 @@ export class FirestoreService {
   async createToilet(form: ToiletPostForm, userId: string): Promise<string> {
     try {
       // 施設ドキュメントを作成
-      const facilityRef = this.toiletsCollection.doc();
+      const facilityRef = doc(this.toiletsCollection);
       const facilityId = facilityRef.id;
 
       // 施設画像をアップロード
@@ -70,8 +97,8 @@ export class FirestoreService {
         ratings: firstToilet.ratings,
         images: [...facilityImageUrls, ...toiletImageUrls],
         createdBy: userId,
-        createdAt: firestore.Timestamp.now(),
-        updatedAt: firestore.Timestamp.now(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
         rating: firstToilet.ratings.overall || 0,
         reviewCount: 1,
         isActive: true,
@@ -82,7 +109,7 @@ export class FirestoreService {
         })),
       };
 
-      await facilityRef.set(toiletData);
+      await setDoc(facilityRef, toiletData);
       return facilityId;
     } catch (error: unknown) {
       console.error('Failed to create toilet:', error);
@@ -98,10 +125,11 @@ export class FirestoreService {
    */
   async updateToilet(toiletId: string, updates: Partial<ToiletLocation>): Promise<void> {
     try {
-      await this.toiletsCollection.doc(toiletId).update({
+      const toiletRef = doc(this.toiletsCollection, toiletId);
+      await setDoc(toiletRef, {
         ...updates,
-        updatedAt: firestore.Timestamp.now(),
-      });
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
     } catch (error) {
       console.error('Failed to update toilet:', error);
       throw new Error('トイレ情報の更新に失敗しました');
