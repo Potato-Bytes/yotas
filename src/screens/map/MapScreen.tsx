@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, Alert } from 'react-native';
 import { Region } from 'react-native-maps';
 import { Map } from '../../components/Map';
@@ -15,55 +15,88 @@ const DEFAULT_REGION: Region = {
 export default function MapScreen() {
   const { location, error, isLoading } = useLocation();
   const [region, setRegion] = useState<Region | undefined>(undefined);
-  const [mapKey, setMapKey] = useState(0); // マップの再レンダリング用
+  
+  // 重要: 初期region設定の完了フラグ
+  const isInitialRegionSet = useRef(false);
+  // 重要: コンポーネントのマウント状態を管理
+  const isMounted = useRef(true);
 
   useEffect(() => {
-    console.log('MapScreen: 位置情報状態更新', { 
-      hasLocation: !!location, 
-      hasError: !!error, 
-      isLoading 
+    // コンポーネントのクリーンアップ
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log('MapScreen useEffect: 実行', {
+      isInitialRegionSet: isInitialRegionSet.current,
+      hasLocation: !!location,
+      hasError: !!error,
+      isLoading
     });
 
-    if (location && !region) {
-      // 位置情報が取得できた場合
-      const newRegion = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      };
-      console.log('MapScreen: 現在地でregion設定', newRegion);
-      setRegion(newRegion);
-    } else if (!isLoading && !location && !region) {
-      // ローディング完了後、位置情報が取得できなかった場合
-      console.log('MapScreen: デフォルト地点でregion設定');
-      setRegion(DEFAULT_REGION);
-      
-      // ユーザーに通知
-      if (error) {
-        Alert.alert(
-          '位置情報取得エラー',
-          `${error}\n\nデフォルトの地点（札幌駅）を表示します。`,
-          [{ text: 'OK' }]
-        );
+    // 重要: 既に初期設定が完了している場合は何もしない
+    if (isInitialRegionSet.current || !isMounted.current) {
+      console.log('MapScreen useEffect: 初期設定済みまたはアンマウント済み、処理をスキップ');
+      return;
+    }
+
+    // 位置情報の取得が完了している場合
+    if (!isLoading) {
+      if (location) {
+        // 位置情報が取得できた場合
+        const newRegion = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        };
+        
+        console.log('MapScreen: 現在地でregion設定', newRegion);
+        setRegion(newRegion);
+        isInitialRegionSet.current = true; // フラグを立てる
+      } else {
+        // 位置情報が取得できなかった場合（エラーまたはタイムアウト）
+        console.log('MapScreen: デフォルト地点でregion設定');
+        setRegion(DEFAULT_REGION);
+        isInitialRegionSet.current = true; // フラグを立てる
+        
+        // ユーザーに通知
+        if (error && isMounted.current) {
+          setTimeout(() => {
+            Alert.alert(
+              '位置情報取得エラー',
+              `${error}\n\nデフォルトの地点（札幌駅）を表示します。`,
+              [{ text: 'OK' }]
+            );
+          }, 100); // Alertの表示を少し遅らせる
+        }
       }
     }
-  }, [location, error, isLoading, region]);
+  }, [location, error, isLoading]); // 注意: regionは依存配列に含めない
 
   // ユーザー操作によるマップ移動のハンドラ
   const handleRegionChangeComplete = (newRegion: Region) => {
-    // 無限ループ防止: 実質的な変更があった場合のみ更新
-    if (!region || 
-        Math.abs(region.latitude - newRegion.latitude) > 0.00001 ||
-        Math.abs(region.longitude - newRegion.longitude) > 0.00001) {
-      console.log('MapScreen: ユーザー操作によるregion更新');
+    // 重要: 実質的な変更があった場合のみ更新
+    if (!region || !isMounted.current) return;
+    
+    const latDiff = Math.abs(region.latitude - newRegion.latitude);
+    const lonDiff = Math.abs(region.longitude - newRegion.longitude);
+    
+    // 0.00001度 = 約1.1メートルの精度で変更を検出
+    if (latDiff > 0.00001 || lonDiff > 0.00001) {
+      console.log('MapScreen: ユーザー操作によるregion更新', {
+        latDiff,
+        lonDiff
+      });
       setRegion(newRegion);
     }
   };
 
   // 現在地へ移動する関数
   const moveToCurrentLocation = () => {
-    if (location) {
+    if (location && isMounted.current) {
       const currentRegion = {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -71,7 +104,6 @@ export default function MapScreen() {
         longitudeDelta: 0.0421,
       };
       setRegion(currentRegion);
-      setMapKey(prev => prev + 1); // マップを再レンダリング
     } else {
       Alert.alert('エラー', '現在地情報が取得できていません');
     }
@@ -92,33 +124,21 @@ export default function MapScreen() {
     );
   }
 
-  // エラー時の表示（デフォルト地点表示）
-  if (error && !location) {
-    return (
-      <View style={styles.container}>
-        <Map 
-          key={mapKey}
-          region={region} 
-          onRegionChangeComplete={handleRegionChangeComplete} 
-        />
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-        </View>
-      </View>
-    );
-  }
-
   // 正常時のマップ表示
   return (
     <View style={styles.container}>
       <Map 
-        key={mapKey}
         region={region} 
         onRegionChangeComplete={handleRegionChangeComplete} 
       />
       {location && (
         <View style={styles.currentLocationButton}>
           <Button title="現在地へ" onPress={moveToCurrentLocation} />
+        </View>
+      )}
+      {error && !location && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>⚠️ {error}</Text>
         </View>
       )}
     </View>

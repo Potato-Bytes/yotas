@@ -114,7 +114,10 @@ export const useLocation = () => {
       } catch (locationError) {
         console.error('useLocation: エラー発生:', locationError);
         if (isMounted) {
-          setError('現在地を取得できませんでした。GPS設定を確認してください。');
+          const errorMessage = locationError instanceof Error 
+            ? locationError.message 
+            : '現在地を取得できませんでした。GPS設定を確認してください。';
+          setError(errorMessage);
           setIsLoading(false);
         }
       }
