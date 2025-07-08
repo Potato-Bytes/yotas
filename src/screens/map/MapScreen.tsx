@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, Alert } from 'react-native';
 import { Region } from 'react-native-maps';
 import { Map } from '../../components/Map';
@@ -13,90 +13,33 @@ const DEFAULT_REGION: Region = {
 };
 
 export default function MapScreen() {
-  const locationData = useLocation(); // 安定した値が返される
-  const { location, error, isLoading } = locationData;
-  
-  const [region, setRegion] = useState<Region | undefined>(undefined);
-  const isInitialRegionSet = useRef(false);
-  const isMounted = useRef(true);
+  const { location, error, isLoading } = useLocation();
 
-  useEffect(() => {
-    // コンポーネントのクリーンアップ
-    return () => {
-      isMounted.current = false;
-    };
+  // ユーザーがマップを操作した後のregionを保持
+  // nullの場合は「ユーザーはまだ操作していない」を意味する
+  const [userInteractedRegion, setUserInteractedRegion] = useState<Region | null>(null);
+
+  // マップ操作完了時のコールバック
+  const handleRegionChangeComplete = useCallback((newRegion: Region) => {
+    console.log('MapScreen: ユーザーがマップを操作しました');
+    setUserInteractedRegion(newRegion);
   }, []);
 
-  // 初期regionの設定
-  useEffect(() => {
-    // 既に設定済みまたはローディング中は何もしない
-    if (isInitialRegionSet.current || isLoading) {
-      return;
-    }
-
-    console.log('MapScreen: region設定処理', { location, error, isLoading });
-
-    if (location) {
-      // 位置情報が取得できた場合
-      const newRegion = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      };
-      
-      console.log('MapScreen: 現在地でregion設定', newRegion);
-      setRegion(newRegion);
-      isInitialRegionSet.current = true;
-    } else if (error) {
-      // エラーの場合はデフォルト地点
-      console.log('MapScreen: デフォルト地点でregion設定');
-      setRegion(DEFAULT_REGION);
-      isInitialRegionSet.current = true;
-      
-      // エラー通知
-      setTimeout(() => {
-        if (isMounted.current) {
-          Alert.alert(
-            '位置情報取得エラー',
-            `${error}\n\nデフォルトの地点（札幌駅）を表示します。`,
-            [{ text: 'OK' }]
-          );
-        }
-      }, 500);
-    }
-  }, [location, error, isLoading]); // 安定した値なので安全
-
-  // マップ操作のハンドラ（メモ化）
-  const handleRegionChangeComplete = useCallback((newRegion: Region) => {
-    if (!region || !isMounted.current) return;
-    
-    const latDiff = Math.abs(region.latitude - newRegion.latitude);
-    const lonDiff = Math.abs(region.longitude - newRegion.longitude);
-    
-    if (latDiff > 0.00001 || lonDiff > 0.00001) {
-      console.log('MapScreen: ユーザー操作によるregion更新');
-      setRegion(newRegion);
-    }
-  }, [region]);
-
-  // 現在地へ移動
+  // 現在地へ移動するボタンの処理
   const moveToCurrentLocation = useCallback(() => {
-    if (location && isMounted.current) {
-      const currentRegion = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      };
-      setRegion(currentRegion);
-    } else {
+    console.log('MapScreen: 現在地へ移動ボタンが押されました');
+    // ユーザー操作によるregionをリセット
+    setUserInteractedRegion(null);
+    
+    if (!location) {
       Alert.alert('エラー', '現在地情報が取得できていません');
     }
   }, [location]);
 
-  // ローディング中の表示
-  if (isLoading || !region) {
+  // ========== 宣言的なレンダリングロジック ==========
+  
+  // 1. ローディング中の場合
+  if (isLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
@@ -110,21 +53,66 @@ export default function MapScreen() {
     );
   }
 
-  // 正常時のマップ表示
+  // 2. 表示すべきregionを決定（useEffectを使わない純粋な計算）
+  let displayRegion: Region;
+  let regionSource: 'user' | 'gps' | 'default';
+
+  if (userInteractedRegion) {
+    // 優先度1: ユーザーがマップを操作した場合
+    displayRegion = userInteractedRegion;
+    regionSource = 'user';
+  } else if (location) {
+    // 優先度2: GPSの現在地が取得できている場合
+    displayRegion = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    };
+    regionSource = 'gps';
+  } else {
+    // 優先度3: 上記以外（エラー発生時など）
+    displayRegion = DEFAULT_REGION;
+    regionSource = 'default';
+  }
+
+  console.log(`MapScreen: region決定 - ソース: ${regionSource}`, displayRegion);
+
+  // 3. 決定したregionでマップを描画
   return (
     <View style={styles.container}>
       <Map 
-        region={region} 
+        region={displayRegion}
         onRegionChangeComplete={handleRegionChangeComplete} 
       />
-      {location && (
-        <View style={styles.currentLocationButton}>
-          <Button title="現在地へ" onPress={moveToCurrentLocation} />
+      
+      {/* エラーメッセージバナー（ユーザー操作前のみ表示） */}
+      {error && !userInteractedRegion && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>
+            ⚠️ {error}{'\n'}
+            デフォルトの地点（札幌駅）を表示しています
+          </Text>
         </View>
       )}
-      {error && !location && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+
+      {/* 現在地へ移動ボタン */}
+      {location && (
+        <View style={styles.currentLocationButton}>
+          <Button 
+            title="現在地へ" 
+            onPress={moveToCurrentLocation}
+            color="#007AFF"
+          />
+        </View>
+      )}
+
+      {/* デバッグ情報（開発時のみ） */}
+      {__DEV__ && (
+        <View style={styles.debugInfo}>
+          <Text style={styles.debugText}>
+            Source: {regionSource}
+          </Text>
         </View>
       )}
     </View>
@@ -156,8 +144,8 @@ const styles = StyleSheet.create({
     top: 50,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 15,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -169,6 +157,7 @@ const styles = StyleSheet.create({
     color: '#ff6b6b',
     fontSize: 14,
     textAlign: 'center',
+    lineHeight: 20,
   },
   currentLocationButton: {
     position: 'absolute',
@@ -181,5 +170,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    overflow: 'hidden',
+  },
+  debugInfo: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 5,
+    borderRadius: 5,
+  },
+  debugText: {
+    color: 'white',
+    fontSize: 12,
   },
 });
