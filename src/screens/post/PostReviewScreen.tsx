@@ -57,7 +57,7 @@ const PostReviewScreen: React.FC = () => {
     type: 'urinals' | 'westernToilets' | 'japaneseToilets' | null;
     gender: 'male' | 'female' | 'shared';
   }>({ type: null, gender: 'male' });
-  const { getCurrentLocation } = useLocation();
+  const { location: userLocation, error: locationError, isLoading: locationLoading } = useLocation();
 
   // 位置選択の確定
   const handleLocationConfirm = useCallback(() => {
@@ -106,50 +106,42 @@ const PostReviewScreen: React.FC = () => {
 
   // 位置情報を自動で現在地に設定
   useEffect(() => {
-    const setCurrentLocation = async () => {
-      if (!form.location) {
-        console.log('位置情報取得を開始します...');
+    console.log('PostReviewScreen: 位置情報状態', { 
+      hasUserLocation: !!userLocation, 
+      locationLoading, 
+      hasLocationError: !!locationError,
+      hasFormLocation: !!form.location
+    });
+
+    // フォームに位置情報が設定されていない場合のみ処理
+    if (!form.location && !locationLoading) {
+      if (userLocation) {
+        // GPSから位置情報が取得できた場合
+        console.log('PostReviewScreen: GPS位置情報をフォームに設定');
+        updateLocation({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude
+        });
+      } else if (locationError) {
+        // エラーが発生した場合はデフォルト位置（東京駅）を設定
+        console.log('PostReviewScreen: エラーのためデフォルト位置を設定');
+        updateLocation({
+          latitude: 35.6812,
+          longitude: 139.7671
+        });
         
-        try {
-          const userLocation = await getCurrentLocation();
-          if (userLocation) {
-            console.log('位置情報取得成功:', userLocation);
-            updateLocation(userLocation);
-          } else {
-            // 位置情報が取得できなかった場合のデフォルト値（東京駅）
-            console.warn('位置情報を取得できなかったため、デフォルト位置を設定します');
-            updateLocation({
-              latitude: 35.6812,
-              longitude: 139.7671
-            });
-          }
-        } catch (error) {
-          console.error('位置情報の取得エラー:', error);
-          // エラー時もデフォルト位置を設定
-          updateLocation({
-            latitude: 35.6812,
-            longitude: 139.7671
-          });
-          
-          // タイムアウトの場合は特別なメッセージを表示
-          const isTimeout = error instanceof Error && error.message?.includes('タイムアウト');
-          
-          Alert.alert(
-            isTimeout ? '位置情報取得タイムアウト' : '位置情報エラー',
-            isTimeout 
-              ? '位置情報の取得に時間がかかっています。\n\n・屋外でアプリを使用していますか？\n・端末のGPS設定が有効になっていますか？\n\n一時的にデフォルト位置（東京駅）を設定しました。'
-              : '位置情報を取得できませんでした。手動で位置を設定してください。',
-            [
-              { text: 'OK' },
-              { text: '位置を手動設定', onPress: () => setShowLocationPicker(true) },
-              ...(isTimeout ? [{ text: '再試行', onPress: setCurrentLocation }] : [])
-            ]
-          );
-        }
+        // ユーザーにエラーを通知
+        Alert.alert(
+          '位置情報取得エラー',
+          `${locationError}\n\nデフォルトの位置（東京駅）を設定しました。\n手動で位置を変更できます。`,
+          [
+            { text: 'OK' },
+            { text: '位置を手動設定', onPress: () => setShowLocationPicker(true) }
+          ]
+        );
       }
-    };
-    setCurrentLocation();
-  }, [form.location, getCurrentLocation, updateLocation]);
+    }
+  }, [form.location, userLocation, locationError, locationLoading, updateLocation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -216,7 +208,9 @@ const PostReviewScreen: React.FC = () => {
             <TouchableOpacity style={styles.picker} onPress={() => setShowLocationPicker(true)}>
               <Text style={styles.pickerText}>
                 {form.location
-                  ? '📍 現在位置'
+                  ? `📍 ${form.location.latitude.toFixed(6)}, ${form.location.longitude.toFixed(6)}`
+                  : locationLoading
+                  ? '📍 位置情報取得中...'
                   : '位置を選択してください'}
               </Text>
               <Icon name="chevron-down" size={20} color="#666" />

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Button, Alert } from 'react-
 import { Region } from 'react-native-maps';
 import { Map } from '../../components/Map';
 import { useLocation } from '../../hooks/useLocation';
+import { useLocationStore } from '../../stores/locationStore';
 
 // デフォルト地点（札幌駅）
 const DEFAULT_REGION: Region = {
@@ -26,15 +27,17 @@ export default function MapScreen() {
   }, []);
 
   // 現在地へ移動するボタンの処理
+  const refreshLocation = useLocationStore(state => state.refreshLocation);
+  
   const moveToCurrentLocation = useCallback(() => {
     console.log('MapScreen: 現在地へ移動ボタンが押されました');
-    // ユーザー操作によるregionをリセット
-    setUserInteractedRegion(null);
     
-    if (!location) {
-      Alert.alert('エラー', '現在地情報が取得できていません');
-    }
-  }, [location]);
+    // 位置情報を再取得
+    refreshLocation().then(() => {
+      // ユーザー操作によるregionをリセット
+      setUserInteractedRegion(null);
+    });
+  }, [refreshLocation]);
 
   // ========== 宣言的なレンダリングロジック ==========
   
