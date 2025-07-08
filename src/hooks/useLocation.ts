@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Platform, PermissionsAndroid } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { Coordinate } from '../types/maps';
@@ -131,5 +131,18 @@ export const useLocation = () => {
     };
   }, []);
 
-  return { location, error, isLoading };
+  // 最重要: useMemoで戻り値を安定化
+  return useMemo(() => {
+    console.log('useLocation: メモ化された値を返す', { 
+      hasLocation: !!location, 
+      hasError: !!error, 
+      isLoading 
+    });
+    
+    return {
+      location,
+      error,
+      isLoading
+    };
+  }, [location, error, isLoading]);
 };

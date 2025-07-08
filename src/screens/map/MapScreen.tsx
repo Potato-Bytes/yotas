@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, Alert } from 'react-native';
 import { Region } from 'react-native-maps';
 import { Map } from '../../components/Map';
@@ -13,12 +13,11 @@ const DEFAULT_REGION: Region = {
 };
 
 export default function MapScreen() {
-  const { location, error, isLoading } = useLocation();
-  const [region, setRegion] = useState<Region | undefined>(undefined);
+  const locationData = useLocation(); // 安定した値が返される
+  const { location, error, isLoading } = locationData;
   
-  // 重要: 初期region設定の完了フラグ
+  const [region, setRegion] = useState<Region | undefined>(undefined);
   const isInitialRegionSet = useRef(false);
-  // 重要: コンポーネントのマウント状態を管理
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -28,74 +27,61 @@ export default function MapScreen() {
     };
   }, []);
 
+  // 初期regionの設定
   useEffect(() => {
-    console.log('MapScreen useEffect: 実行', {
-      isInitialRegionSet: isInitialRegionSet.current,
-      hasLocation: !!location,
-      hasError: !!error,
-      isLoading
-    });
-
-    // 重要: 既に初期設定が完了している場合は何もしない
-    if (isInitialRegionSet.current || !isMounted.current) {
-      console.log('MapScreen useEffect: 初期設定済みまたはアンマウント済み、処理をスキップ');
+    // 既に設定済みまたはローディング中は何もしない
+    if (isInitialRegionSet.current || isLoading) {
       return;
     }
 
-    // 位置情報の取得が完了している場合
-    if (!isLoading) {
-      if (location) {
-        // 位置情報が取得できた場合
-        const newRegion = {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        };
-        
-        console.log('MapScreen: 現在地でregion設定', newRegion);
-        setRegion(newRegion);
-        isInitialRegionSet.current = true; // フラグを立てる
-      } else {
-        // 位置情報が取得できなかった場合（エラーまたはタイムアウト）
-        console.log('MapScreen: デフォルト地点でregion設定');
-        setRegion(DEFAULT_REGION);
-        isInitialRegionSet.current = true; // フラグを立てる
-        
-        // ユーザーに通知
-        if (error && isMounted.current) {
-          setTimeout(() => {
-            Alert.alert(
-              '位置情報取得エラー',
-              `${error}\n\nデフォルトの地点（札幌駅）を表示します。`,
-              [{ text: 'OK' }]
-            );
-          }, 100); // Alertの表示を少し遅らせる
-        }
-      }
-    }
-  }, [location, error, isLoading]); // 注意: regionは依存配列に含めない
+    console.log('MapScreen: region設定処理', { location, error, isLoading });
 
-  // ユーザー操作によるマップ移動のハンドラ
-  const handleRegionChangeComplete = (newRegion: Region) => {
-    // 重要: 実質的な変更があった場合のみ更新
+    if (location) {
+      // 位置情報が取得できた場合
+      const newRegion = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      };
+      
+      console.log('MapScreen: 現在地でregion設定', newRegion);
+      setRegion(newRegion);
+      isInitialRegionSet.current = true;
+    } else if (error) {
+      // エラーの場合はデフォルト地点
+      console.log('MapScreen: デフォルト地点でregion設定');
+      setRegion(DEFAULT_REGION);
+      isInitialRegionSet.current = true;
+      
+      // エラー通知
+      setTimeout(() => {
+        if (isMounted.current) {
+          Alert.alert(
+            '位置情報取得エラー',
+            `${error}\n\nデフォルトの地点（札幌駅）を表示します。`,
+            [{ text: 'OK' }]
+          );
+        }
+      }, 500);
+    }
+  }, [location, error, isLoading]); // 安定した値なので安全
+
+  // マップ操作のハンドラ（メモ化）
+  const handleRegionChangeComplete = useCallback((newRegion: Region) => {
     if (!region || !isMounted.current) return;
     
     const latDiff = Math.abs(region.latitude - newRegion.latitude);
     const lonDiff = Math.abs(region.longitude - newRegion.longitude);
     
-    // 0.00001度 = 約1.1メートルの精度で変更を検出
     if (latDiff > 0.00001 || lonDiff > 0.00001) {
-      console.log('MapScreen: ユーザー操作によるregion更新', {
-        latDiff,
-        lonDiff
-      });
+      console.log('MapScreen: ユーザー操作によるregion更新');
       setRegion(newRegion);
     }
-  };
+  }, [region]);
 
-  // 現在地へ移動する関数
-  const moveToCurrentLocation = () => {
+  // 現在地へ移動
+  const moveToCurrentLocation = useCallback(() => {
     if (location && isMounted.current) {
       const currentRegion = {
         latitude: location.latitude,
@@ -107,7 +93,7 @@ export default function MapScreen() {
     } else {
       Alert.alert('エラー', '現在地情報が取得できていません');
     }
-  };
+  }, [location]);
 
   // ローディング中の表示
   if (isLoading || !region) {
