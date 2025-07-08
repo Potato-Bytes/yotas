@@ -80,3 +80,19 @@ yarn-error.log
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Firebase configuration files (contains API keys and secrets)
+google-services.json
+GoogleService-Info.plist
+
+# API Keys and secrets
+android/app/src/main/res/values/secrets.xml
+ios/yotas/Secrets.plist
+
+# Backup files
+*.backup
+*.bak
+
+# Production keystores (keep debug.keystore for development)
+*.keystore
+!debug.keystore

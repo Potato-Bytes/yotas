@@ -80,7 +80,12 @@ const PostReviewScreen: React.FC = () => {
       Alert.alert('投稿完了', 'トイレ情報が正常に投稿されました！', [
         { text: 'OK', onPress: () => {
           resetForm();
-          navigation.navigate('Map');
+          // タブナビゲーションの場合はgoBackを使用してMapタブに戻る
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Map');
+          }
         }},
       ]);
     }
@@ -89,7 +94,12 @@ const PostReviewScreen: React.FC = () => {
   // キャンセルボタンの処理
   const handleCancel = useCallback(() => {
     resetForm();
-    navigation.navigate('Map');
+    // タブナビゲーションの場合はgoBackを使用してMapタブに戻る
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Map');
+    }
   }, [resetForm, navigation]);
 
   const selectedTypeOption = toiletTypeOptions.find(option => option.value === form.type);

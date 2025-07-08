@@ -1,9 +1,9 @@
-// Map Constants
+// Map Constants - 東京駅周辺を適切なズームレベルで
 export const DEFAULT_MAP_REGION = {
   latitude: 35.6762,
   longitude: 139.6503,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+  latitudeDelta: 0.01,   // より狭い範囲に修正
+  longitudeDelta: 0.01,  // より狭い範囲に修正
 };
 
 // API Constants
