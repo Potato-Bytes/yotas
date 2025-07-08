@@ -59,7 +59,7 @@ const PostReviewScreen: React.FC = () => {
     gender: 'male' | 'female' | 'shared';
   }>({ type: null, gender: 'male' });
   // Zustandストアから位置情報を取得
-  const { location, errorMsg, isLoading } = useLocationStore();
+  const { location, errorMsg, isLoading: locationLoading } = useLocationStore();
 
   // 位置選択の確定
   const handleLocationConfirm = useCallback(() => {
@@ -116,7 +116,7 @@ const PostReviewScreen: React.FC = () => {
   useEffect(() => {
     console.log('PostReviewScreen: 位置情報状態', {
       hasUserLocation: !!location,
-      locationLoading: isLoading,
+      locationLoading: locationLoading,
       hasLocationError: !!errorMsg,
       hasFormLocation: !!formLocation
     });
@@ -130,7 +130,7 @@ const PostReviewScreen: React.FC = () => {
       };
       setFormLocation(newLocation);
       updateLocation(newLocation);
-    } else if (errorMsg && !formLocation && !isLoading) {
+    } else if (errorMsg && !formLocation && !locationLoading) {
       // エラーの場合はデフォルト位置を設定（札幌駅）
       console.log('PostReviewScreen: エラーのためデフォルト位置を設定');
       const defaultLocation = {
@@ -140,7 +140,7 @@ const PostReviewScreen: React.FC = () => {
       setFormLocation(defaultLocation);
       updateLocation(defaultLocation);
     }
-  }, [location, errorMsg, isLoading, formLocation, updateLocation]);
+  }, [location, errorMsg, locationLoading, formLocation, updateLocation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -208,7 +208,7 @@ const PostReviewScreen: React.FC = () => {
               <Text style={styles.pickerText}>
                 {form.location
                   ? `📍 ${form.location.latitude.toFixed(6)}, ${form.location.longitude.toFixed(6)}`
-                  : isLoading
+                  : locationLoading
                   ? '📍 位置情報取得中...'
                   : '位置を選択してください'}
               </Text>
@@ -218,7 +218,7 @@ const PostReviewScreen: React.FC = () => {
 
           {/* 位置情報表示部分 */}
           <View style={styles.locationContainer}>
-            {isLoading ? (
+            {locationLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" />
                 <Text style={styles.loadingText}>位置情報を取得中...</Text>

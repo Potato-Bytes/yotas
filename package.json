@@ -31,7 +31,6 @@
     "@tanstack/react-query": "^5.81.5",
     "@types/react-native-vector-icons": "^6.4.18",
     "date-fns": "^4.1.0",
-    "expo-location": "^18.1.6",
     "lodash": "^4.17.21",
     "react": "19.1.0",
     "react-hook-form": "^7.59.0",

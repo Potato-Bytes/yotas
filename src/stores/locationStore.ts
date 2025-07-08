@@ -1,8 +1,17 @@
 import { create } from 'zustand';
-import * as Location from 'expo-location';
+import { PermissionsAndroid, Platform } from 'react-native';
+
+interface LocationObject {
+  coords: {
+    latitude: number;
+    longitude: number;
+    accuracy: number | null;
+  };
+  timestamp: number;
+}
 
 interface LocationState {
-  location: Location.LocationObject | null;
+  location: LocationObject | null;
   errorMsg: string | null;
   isLoading: boolean;
   isInitialized: boolean;
