@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { Coordinate } from '../types/maps';
+import * as Location from 'expo-location';
 
 interface LocationState {
-  location: Coordinate | null;
-  error: string | null;
+  location: Location.LocationObject | null;
+  errorMsg: string | null;
   isLoading: boolean;
   isInitialized: boolean;
   
@@ -15,109 +15,105 @@ interface LocationState {
 
 export const useLocationStore = create<LocationState>((set, get) => ({
   location: null,
-  error: null,
-  isLoading: false,
+  errorMsg: null,
+  isLoading: true,
   isInitialized: false,
 
   initializeLocation: async () => {
-    const state = get();
-    if (state.isInitialized && state.location) {
+    // 既に初期化済みの場合はスキップ
+    if (get().isInitialized && get().location) {
       console.log('LocationStore: 既に初期化済み');
       return;
     }
 
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, errorMsg: null });
+    console.log('LocationStore: 位置情報取得プロセス開始');
 
     try {
-      // 権限の確認
+      // 1. 権限の確認
       console.log('LocationStore: 権限確認開始');
+      const { status } = await Location.requestForegroundPermissionsAsync();
       
-      // React Native Community Geolocationを使用
-      const { PermissionsAndroid, Platform } = require('react-native');
-      const Geolocation = require('@react-native-community/geolocation');
-      
-      let hasPermission = false;
-      
-      if (Platform.OS === 'android') {
-        const permissionResult = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: '位置情報の許可',
-            message: 'yotasが現在位置を取得するために位置情報の許可が必要です。',
-            buttonNeutral: '後で',
-            buttonNegative: 'キャンセル',
-            buttonPositive: 'OK',
-          }
-        );
-        hasPermission = permissionResult === PermissionsAndroid.RESULTS.GRANTED;
-      } else {
-        hasPermission = true; // iOSはInfo.plistで設定済み
+      if (status !== 'granted') {
+        throw new Error('位置情報へのアクセスが拒否されました。設定から権限を許可してください。');
       }
       
-      if (!hasPermission) {
-        throw new Error('位置情報へのアクセスが拒否されました');
+      console.log('LocationStore: 権限確認完了');
+
+      // 2. 位置情報サービスが有効か確認
+      const isLocationEnabled = await Location.hasServicesEnabledAsync();
+      if (!isLocationEnabled) {
+        throw new Error('位置情報サービスが無効です。設定から有効にしてください。');
       }
 
-      // 位置情報の取得（段階的な精度で試行）
+      // 3. 位置情報の取得（段階的に精度を変更）
       const accuracyLevels = [
-        { accuracy: false, timeout: 8000 },  // 低精度で速く
-        { accuracy: true, timeout: 15000 },  // 高精度
-        { accuracy: false, timeout: 5000 }   // 最後の試行
+        { 
+          accuracy: Location.Accuracy.Balanced, 
+          name: 'Balanced',
+          timeout: 10000 
+        },
+        { 
+          accuracy: Location.Accuracy.High, 
+          name: 'High',
+          timeout: 15000 
+        },
+        { 
+          accuracy: Location.Accuracy.Highest, 
+          name: 'Highest',
+          timeout: 20000 
+        }
       ];
 
-      let currentLocation = null;
+      let lastError: Error | null = null;
 
-      for (let i = 0; i < accuracyLevels.length; i++) {
-        const level = accuracyLevels[i];
+      for (const level of accuracyLevels) {
         try {
-          console.log(`LocationStore: 精度レベル${i + 1}で位置情報取得試行中...`);
+          console.log(`LocationStore: 精度[${level.name}]で位置情報取得試行中...`);
           
-          const locationPromise = new Promise<Coordinate>((resolve, reject) => {
-            Geolocation.getCurrentPosition(
-              (position: any) => {
-                const locationData: Coordinate = {
-                  latitude: position.coords.latitude,
-                  longitude: position.coords.longitude,
-                };
-                resolve(locationData);
-              },
-              (error: any) => reject(error),
-              {
-                enableHighAccuracy: level.accuracy,
-                timeout: level.timeout,
-                maximumAge: 60000,
-              }
-            );
+          // タイムアウト付きで位置情報を取得
+          const locationPromise = Location.getCurrentPositionAsync({
+            accuracy: level.accuracy,
+            distanceInterval: 0,
+            mayShowUserSettingsDialog: true,
+          });
+
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`タイムアウト (${level.timeout}ms)`)), level.timeout);
+          });
+
+          const location = await Promise.race([locationPromise, timeoutPromise]);
+          
+          console.log(`LocationStore: 精度[${level.name}]で位置情報取得成功`, {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            accuracy: location.coords.accuracy
+          });
+
+          set({ 
+            location, 
+            isLoading: false, 
+            isInitialized: true,
+            errorMsg: null 
           });
           
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('位置情報取得タイムアウト')), level.timeout + 1000)
-          );
-
-          currentLocation = await Promise.race([locationPromise, timeoutPromise]);
-
-          if (currentLocation) {
-            console.log('LocationStore: 位置情報取得成功', currentLocation);
-            set({ 
-              location: currentLocation, 
-              isLoading: false, 
-              isInitialized: true,
-              error: null 
-            });
-            return;
-          }
-        } catch (err) {
-          console.log(`LocationStore: 精度レベル${i + 1}での取得失敗:`, err);
-          continue;
+          return; // 成功したら即座に終了
+        } catch (error) {
+          console.warn(`LocationStore: 精度[${level.name}]での取得失敗:`, error);
+          lastError = error as Error;
+          continue; // 次の精度レベルで再試行
         }
       }
 
-      throw new Error('すべての精度レベルで位置情報の取得に失敗しました');
+      // すべての試行が失敗した場合
+      throw lastError || new Error('すべての精度レベルで位置情報の取得に失敗しました');
 
     } catch (error) {
-      console.error('LocationStore: エラー発生:', error);
+      const errorMessage = error instanceof Error ? error.message : '位置情報の取得に失敗しました';
+      console.error('LocationStore: 最終的なエラー:', errorMessage);
+      
       set({ 
-        error: error instanceof Error ? error.message : '位置情報の取得に失敗しました',
+        errorMsg: errorMessage,
         isLoading: false,
         isInitialized: true
       });
@@ -126,15 +122,24 @@ export const useLocationStore = create<LocationState>((set, get) => ({
 
   refreshLocation: async () => {
     console.log('LocationStore: 位置情報を更新');
-    set({ isInitialized: false });
-    await get().initializeLocation();
+    const store = get();
+    
+    // リセットしてから再初期化
+    set({
+      location: null,
+      errorMsg: null,
+      isLoading: true,
+      isInitialized: false
+    });
+    
+    await store.initializeLocation();
   },
 
   reset: () => {
     console.log('LocationStore: リセット');
     set({
       location: null,
-      error: null,
+      errorMsg: null,
       isLoading: false,
       isInitialized: false
     });

@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -25,7 +26,7 @@ import { ToiletType } from '../../types/maps';
 import LocationPicker from '../../components/map/LocationPicker';
 import ImagePickerComponent from '../../components/post/ImagePicker';
 import StarRating from '../../components/common/StarRating';
-import { useLocation } from '../../hooks/useLocation';
+import { useLocationStore } from '../../stores/locationStore';
 
 type PostReviewScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Post'>;
 
@@ -57,7 +58,8 @@ const PostReviewScreen: React.FC = () => {
     type: 'urinals' | 'westernToilets' | 'japaneseToilets' | null;
     gender: 'male' | 'female' | 'shared';
   }>({ type: null, gender: 'male' });
-  const { location: userLocation, error: locationError, isLoading: locationLoading } = useLocation();
+  // Zustandストアから位置情報を取得
+  const { location, errorMsg, isLoading } = useLocationStore();
 
   // 位置選択の確定
   const handleLocationConfirm = useCallback(() => {
@@ -104,44 +106,41 @@ const PostReviewScreen: React.FC = () => {
 
   const selectedTypeOption = toiletTypeOptions.find(option => option.value === form.type);
 
-  // 位置情報を自動で現在地に設定
+  // フォームの位置情報
+  const [formLocation, setFormLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  // 位置情報の設定
   useEffect(() => {
-    console.log('PostReviewScreen: 位置情報状態', { 
-      hasUserLocation: !!userLocation, 
-      locationLoading, 
-      hasLocationError: !!locationError,
-      hasFormLocation: !!form.location
+    console.log('PostReviewScreen: 位置情報状態', {
+      hasUserLocation: !!location,
+      locationLoading: isLoading,
+      hasLocationError: !!errorMsg,
+      hasFormLocation: !!formLocation
     });
 
-    // フォームに位置情報が設定されていない場合のみ処理
-    if (!form.location && !locationLoading) {
-      if (userLocation) {
-        // GPSから位置情報が取得できた場合
-        console.log('PostReviewScreen: GPS位置情報をフォームに設定');
-        updateLocation({
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude
-        });
-      } else if (locationError) {
-        // エラーが発生した場合はデフォルト位置（東京駅）を設定
-        console.log('PostReviewScreen: エラーのためデフォルト位置を設定');
-        updateLocation({
-          latitude: 35.6812,
-          longitude: 139.7671
-        });
-        
-        // ユーザーにエラーを通知
-        Alert.alert(
-          '位置情報取得エラー',
-          `${locationError}\n\nデフォルトの位置（東京駅）を設定しました。\n手動で位置を変更できます。`,
-          [
-            { text: 'OK' },
-            { text: '位置を手動設定', onPress: () => setShowLocationPicker(true) }
-          ]
-        );
-      }
+    // 位置情報が取得できた場合、フォームに設定
+    if (location && !formLocation) {
+      console.log('PostReviewScreen: 位置情報をフォームに設定');
+      const newLocation = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+      setFormLocation(newLocation);
+      updateLocation(newLocation);
+    } else if (errorMsg && !formLocation && !isLoading) {
+      // エラーの場合はデフォルト位置を設定（札幌駅）
+      console.log('PostReviewScreen: エラーのためデフォルト位置を設定');
+      const defaultLocation = {
+        latitude: 43.06866, // 札幌駅
+        longitude: 141.3507,
+      };
+      setFormLocation(defaultLocation);
+      updateLocation(defaultLocation);
     }
-  }, [form.location, userLocation, locationError, locationLoading, updateLocation]);
+  }, [location, errorMsg, isLoading, formLocation, updateLocation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -209,7 +208,7 @@ const PostReviewScreen: React.FC = () => {
               <Text style={styles.pickerText}>
                 {form.location
                   ? `📍 ${form.location.latitude.toFixed(6)}, ${form.location.longitude.toFixed(6)}`
-                  : locationLoading
+                  : isLoading
                   ? '📍 位置情報取得中...'
                   : '位置を選択してください'}
               </Text>
@@ -217,8 +216,25 @@ const PostReviewScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-        </View>
+          {/* 位置情報表示部分 */}
+          <View style={styles.locationContainer}>
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" />
+                <Text style={styles.loadingText}>位置情報を取得中...</Text>
+              </View>
+            ) : formLocation ? (
+              <Text style={styles.locationText}>
+                📍 位置: {formLocation.latitude.toFixed(6)}, {formLocation.longitude.toFixed(6)}
+              </Text>
+            ) : (
+              <Text style={styles.locationErrorText}>
+                📍 位置情報なし
+              </Text>
+            )}
+          </View>
 
+        </View>
 
         {/* 詳細設備情報 */}
         <View style={styles.section}>
@@ -928,6 +944,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     textAlign: 'center',
+  },
+  locationContainer: {
+    backgroundColor: 'white',
+    padding: 12,
+    marginVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: '#666',
+    fontSize: 14,
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  locationErrorText: {
+    fontSize: 14,
+    color: '#999',
   },
 });
 

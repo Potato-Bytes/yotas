@@ -1,9 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Button, Alert } from 'react-native';
 import { Region } from 'react-native-maps';
 import { Map } from '../../components/Map';
-import { useLocation } from '../../hooks/useLocation';
 import { useLocationStore } from '../../stores/locationStore';
+import { useFocusEffect } from '@react-navigation/native';
 
 // デフォルト地点（札幌駅）
 const DEFAULT_REGION: Region = {
@@ -14,30 +14,56 @@ const DEFAULT_REGION: Region = {
 };
 
 export default function MapScreen() {
-  const { location, error, isLoading } = useLocation();
+  // Zustandストアから位置情報を取得
+  const { location, errorMsg, isLoading } = useLocationStore();
+  const refreshLocation = useLocationStore(state => state.refreshLocation);
 
   // ユーザーがマップを操作した後のregionを保持
-  // nullの場合は「ユーザーはまだ操作していない」を意味する
   const [userInteractedRegion, setUserInteractedRegion] = useState<Region | null>(null);
+
+  // 画面フォーカス時の処理
+  useFocusEffect(
+    useCallback(() => {
+      console.log('MapScreen: 画面にフォーカス');
+      
+      // タブ切り替え時にユーザー操作をリセット
+      setUserInteractedRegion(null);
+      
+      return () => {
+        console.log('MapScreen: 画面からフォーカスが外れる');
+      };
+    }, [])
+  );
 
   // マップ操作完了時のコールバック
   const handleRegionChangeComplete = useCallback((newRegion: Region) => {
     console.log('MapScreen: ユーザーがマップを操作しました');
-    setUserInteractedRegion(newRegion);
+    
+    // 有効な範囲内かチェック（緯度: -90〜90, 経度: -180〜180）
+    if (
+      newRegion.latitude >= -90 && newRegion.latitude <= 90 &&
+      newRegion.longitude >= -180 && newRegion.longitude <= 180 &&
+      newRegion.latitudeDelta > 0 && newRegion.latitudeDelta <= 180 &&
+      newRegion.longitudeDelta > 0 && newRegion.longitudeDelta <= 360
+    ) {
+      setUserInteractedRegion(newRegion);
+    } else {
+      console.warn('MapScreen: 無効なregionが検出されました', newRegion);
+    }
   }, []);
 
   // 現在地へ移動するボタンの処理
-  const refreshLocation = useLocationStore(state => state.refreshLocation);
-  
-  const moveToCurrentLocation = useCallback(() => {
+  const moveToCurrentLocation = useCallback(async () => {
     console.log('MapScreen: 現在地へ移動ボタンが押されました');
     
-    // 位置情報を再取得
-    refreshLocation().then(() => {
-      // ユーザー操作によるregionをリセット
-      setUserInteractedRegion(null);
-    });
-  }, [refreshLocation]);
+    // ユーザー操作をリセット
+    setUserInteractedRegion(null);
+    
+    // 位置情報がない場合は更新を試みる
+    if (!location) {
+      await refreshLocation();
+    }
+  }, [location, refreshLocation]);
 
   // ========== 宣言的なレンダリングロジック ==========
   
@@ -56,7 +82,7 @@ export default function MapScreen() {
     );
   }
 
-  // 2. 表示すべきregionを決定（useEffectを使わない純粋な計算）
+  // 表示すべきregionを決定（宣言的アプローチ）
   let displayRegion: Region;
   let regionSource: 'user' | 'gps' | 'default';
 
@@ -67,8 +93,8 @@ export default function MapScreen() {
   } else if (location) {
     // 優先度2: GPSの現在地が取得できている場合
     displayRegion = {
-      latitude: location.latitude,
-      longitude: location.longitude,
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
     };
@@ -81,7 +107,7 @@ export default function MapScreen() {
 
   console.log(`MapScreen: region決定 - ソース: ${regionSource}`, displayRegion);
 
-  // 3. 決定したregionでマップを描画
+  // マップ表示
   return (
     <View style={styles.container}>
       <Map 
@@ -89,32 +115,36 @@ export default function MapScreen() {
         onRegionChangeComplete={handleRegionChangeComplete} 
       />
       
-      {/* エラーメッセージバナー（ユーザー操作前のみ表示） */}
-      {error && !userInteractedRegion && (
+      {/* エラーメッセージバナー */}
+      {errorMsg && regionSource === 'default' && (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>
-            ⚠️ {error}{'\n'}
+            ⚠️ {errorMsg}{'\n'}
             デフォルトの地点（札幌駅）を表示しています
           </Text>
-        </View>
-      )}
-
-      {/* 現在地へ移動ボタン */}
-      {location && (
-        <View style={styles.currentLocationButton}>
           <Button 
-            title="現在地へ" 
-            onPress={moveToCurrentLocation}
+            title="再試行" 
+            onPress={refreshLocation}
             color="#007AFF"
           />
         </View>
       )}
+
+      {/* 現在地へ移動ボタン */}
+      <View style={styles.currentLocationButton}>
+        <Button 
+          title={location ? "現在地へ" : "位置情報を更新"} 
+          onPress={moveToCurrentLocation}
+          color="#007AFF"
+        />
+      </View>
 
       {/* デバッグ情報（開発時のみ） */}
       {__DEV__ && (
         <View style={styles.debugInfo}>
           <Text style={styles.debugText}>
             Source: {regionSource}
+            {'\n'}User: {userInteractedRegion ? 'Yes' : 'No'}
           </Text>
         </View>
       )}
@@ -155,12 +185,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    alignItems: 'center',
   },
   errorText: {
     color: '#ff6b6b',
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+    marginBottom: 10,
   },
   currentLocationButton: {
     position: 'absolute',
@@ -180,11 +212,12 @@ const styles = StyleSheet.create({
     top: 100,
     left: 20,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 5,
+    padding: 8,
     borderRadius: 5,
   },
   debugText: {
     color: 'white',
     fontSize: 12,
+    lineHeight: 16,
   },
 });
