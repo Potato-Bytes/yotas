@@ -12,15 +12,18 @@ interface State {
   location: LocationCoords | null;
   errorMsg: string | null;
   isLoading: boolean;
+  watchId: number | null;
   initializeLocation: () => Promise<void>;
   refresh: () => Promise<void>;
+  stop: () => void;
   reset: () => void;
 }
 
-export const useLocationStore = create<State>((set) => ({
+export const useLocationStore = create<State>((set, get) => ({
   location: null,
   errorMsg: null,
   isLoading: false,
+  watchId: null,
 
   initializeLocation: async () => {
     set({ isLoading: true, errorMsg: null });
@@ -39,24 +42,36 @@ export const useLocationStore = create<State>((set) => ({
         if (iosAuth !== 'granted') throw new Error('位置情報の権限が拒否されました');
       }
 
-      // ---- 2. 位置情報取得 ----
+      // ---- 2. watchPosition でリアルタイム位置情報取得 ----
       const opts: GeoOptions = {
         enableHighAccuracy: true,
         timeout: 15000,
         maximumAge: 10000,
+        distanceFilter: 20,  // 20m移動したら更新
+        interval: 4000,      // 4秒間隔で更新
       };
 
-      await new Promise<GeoPosition>((resolve, reject) => {
-        Geolocation.getCurrentPosition(
-          (pos) => {
-            const { latitude, longitude, accuracy } = pos.coords;
-            set({ location: { latitude, longitude, accuracy }, isLoading: false });
-            resolve(pos);
-          },
-          (err: GeoError) => reject(new Error(err.message)),
-          opts,
-        );
-      });
+      // 既にwatchingしている場合は停止
+      const currentWatchId = get().watchId;
+      if (currentWatchId !== null) {
+        Geolocation.clearWatch(currentWatchId);
+      }
+
+      // watchPositionを開始
+      const watchId = Geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          set({ location: { latitude, longitude, accuracy }, isLoading: false });
+          console.log('位置情報更新:', { latitude, longitude, accuracy });
+        },
+        (err: GeoError) => {
+          set({ errorMsg: err.message, isLoading: false });
+          console.warn('位置情報取得エラー:', err);
+        },
+        opts,
+      );
+
+      set({ watchId, isLoading: false });
     } catch (e) {
       set({ errorMsg: (e as Error).message, isLoading: false });
       console.warn('LocationStore error:', e);
@@ -68,5 +83,18 @@ export const useLocationStore = create<State>((set) => ({
     await (useLocationStore.getState().initializeLocation());
   },
 
-  reset: () => set({ location: null, errorMsg: null, isLoading: false }),
+  stop: () => {
+    const { watchId } = get();
+    if (watchId !== null) {
+      Geolocation.clearWatch(watchId);
+      set({ watchId: null });
+      console.log('位置情報のwatchingを停止');
+    }
+  },
+
+  reset: () => {
+    const { stop } = get();
+    stop();
+    set({ location: null, errorMsg: null, isLoading: false });
+  },
 }));

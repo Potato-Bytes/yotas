@@ -19,7 +19,14 @@ function App() {
   // アプリ起動時に一度だけ位置情報を初期化
   useEffect(() => {
     console.log('App: 位置情報の初期化開始');
+    const { initializeLocation, stop } = useLocationStore.getState();
     initializeLocation();
+    
+    // アンマウント時にwatchPositionを停止してメモリリークを防ぐ
+    return () => {
+      console.log('App: 位置情報のwatchingを停止');
+      stop();
+    };
   }, []);
 
   return (
