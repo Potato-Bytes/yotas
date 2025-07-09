@@ -12,7 +12,6 @@ import {
 import MapView, { PROVIDER_GOOGLE, Marker, Region } from 'react-native-maps';
 import { useLocationStore } from '../../stores/locationStore';
 import { useReviewStore } from '../../stores';
-import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useMapStore } from '../../stores/mapStore';
 
@@ -30,9 +29,6 @@ const SAPPORO_REGION: Region = {
 };
 
 const MapScreen: React.FC = () => {
-  // Navigation hooks
-  const isFocused = useIsFocused();
-  
   // Zustand stores
   const location = useLocationStore((state) => state.location);
   const locationError = useLocationStore((state) => state.errorMsg);
@@ -63,19 +59,8 @@ const MapScreen: React.FC = () => {
     locationError,
   });
 
-  // 画面フォーカス時に地図を更新
-  useEffect(() => {
-    if (isFocused && isMapReady && mapRef.current) {
-      // 少し遅延を入れてタブ切り替えアニメーション完了を待つ
-      const timer = setTimeout(() => {
-        centerToCurrentLocation();
-      }, 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isFocused, isMapReady]);
 
-  // 現在地が取れたら region を確定
+  // 位置情報が取れたら region を確定
   useEffect(() => {
     if (location) {
       const cur = {
@@ -84,10 +69,11 @@ const MapScreen: React.FC = () => {
         latitudeDelta: LATITUDE_DELTA,
         longitudeDelta: LONGITUDE_DELTA,
       };
-      setRegion(prev => prev ?? cur);   // まだ設定されていなければ採用
-      setLastRegion(cur);               // グローバルにも保存
+      // まだリージョンが未設定なら適用
+      setRegion(prev => prev ?? cur);
+      setLastRegion(cur);
     }
-  }, [location]);
+  }, [location, setLastRegion]);
 
   // 「現在地へ」ボタン
   const centerToCurrentLocation = () => {
@@ -108,11 +94,6 @@ const MapScreen: React.FC = () => {
   const handleMapReady = () => {
     console.log('MapScreen: Map is ready');
     setIsMapReady(true);
-    
-    // マップ準備完了後、すぐに現在位置へ移動
-    setTimeout(() => {
-      centerToCurrentLocation();
-    }, 100);
   };
 
   // カスタム現在地ボタン
@@ -196,7 +177,7 @@ const MapScreen: React.FC = () => {
       {__DEV__ && (
         <View style={styles.debugContainer}>
           <Text style={styles.debugText}>
-            Ready: {isMapReady ? '✓' : '✗'} | Focus: {isFocused ? '✓' : '✗'}
+            Ready: {isMapReady ? '✓' : '✗'}
           </Text>
           {location && (
             <Text style={styles.debugText}>
