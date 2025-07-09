@@ -14,6 +14,7 @@ import { useLocationStore } from '../../stores/locationStore';
 import { useReviewStore } from '../../stores';
 import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useMapStore } from '../../stores/mapStore';
 
 const { width, height } = Dimensions.get('window');
 const ASPECT_RATIO = width / height;
@@ -37,13 +38,16 @@ const MapScreen: React.FC = () => {
   const locationError = useLocationStore((state) => state.errorMsg);
   const isLocationLoading = useLocationStore((state) => state.isLoading);
   const { reviews } = useReviewStore();
+  
+  // 新: 地図リージョンをグローバル保存
+  const { lastRegion, setLastRegion } = useMapStore();
+  const [region, setRegion] = useState<Region | null>(lastRegion);
 
   // MapView ref
   const mapRef = useRef<MapView>(null);
   
   // State
   const [isMapReady, setIsMapReady] = useState(false);
-  const [hasInitialized, setHasInitialized] = useState(false);
 
   // デバッグログ
   console.log('MapScreen: レンダリング状態', {
@@ -71,30 +75,33 @@ const MapScreen: React.FC = () => {
     }
   }, [isFocused, isMapReady]);
 
-  // 位置情報が更新されたら地図を移動
+  // 現在地が取れたら region を確定
   useEffect(() => {
-    if (location && isMapReady && !hasInitialized && mapRef.current) {
-      console.log('MapScreen: 初期位置設定', location);
-      centerToCurrentLocation();
-      setHasInitialized(true);
+    if (location) {
+      const cur = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+      setRegion(prev => prev ?? cur);   // まだ設定されていなければ採用
+      setLastRegion(cur);               // グローバルにも保存
     }
-  }, [location, isMapReady, hasInitialized]);
+  }, [location]);
 
-  // 現在地へのセンタリング
+  // 「現在地へ」ボタン
   const centerToCurrentLocation = () => {
     if (!mapRef.current) return;
-    
-    const targetRegion = location ? {
+    if (!location) return;
+    const target = {
       latitude: location.latitude,
       longitude: location.longitude,
       latitudeDelta: LATITUDE_DELTA,
       longitudeDelta: LONGITUDE_DELTA,
-    } : SAPPORO_REGION;
-    
-    console.log('MapScreen: 現在地へセンタリング', targetRegion);
-    
-    // アニメーションで移動
-    mapRef.current.animateToRegion(targetRegion, 1000);
+    };
+    setRegion(target);
+    setLastRegion(target);
+    mapRef.current.animateToRegion(target, 700);
   };
 
   // MapViewのイベントハンドラー
@@ -119,19 +126,6 @@ const MapScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  // 初期リージョンの決定
-  const getInitialRegion = (): Region => {
-    // 位置情報があればそれを使用、なければ札幌
-    if (location) {
-      return {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
-    }
-    return SAPPORO_REGION;
-  };
 
 
   return (
@@ -140,7 +134,11 @@ const MapScreen: React.FC = () => {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={getInitialRegion()}
+        region={region ?? SAPPORO_REGION}      // ★ 常に制御付き
+        onRegionChangeComplete={r => {         // ★ 移動したら保存
+          setRegion(r);
+          setLastRegion(r);
+        }}
         onMapReady={handleMapReady}
         showsUserLocation={true}
         showsMyLocationButton={false}
@@ -206,7 +204,7 @@ const MapScreen: React.FC = () => {
             </Text>
           )}
           <Text style={styles.debugText}>
-            Reg: {getInitialRegion().latitude.toFixed(4)}, {getInitialRegion().longitude.toFixed(4)}
+            Reg: {(region ?? SAPPORO_REGION).latitude.toFixed(4)}, {(region ?? SAPPORO_REGION).longitude.toFixed(4)}
           </Text>
         </View>
       )}
