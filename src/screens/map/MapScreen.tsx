@@ -29,16 +29,11 @@ export default function MapScreen() {
   // ========== すべてのHookを最初に宣言（条件なし） ==========
   const mapRef = useRef<MapView>(null);
   const { location, errorMsg, isLoading } = useLocationStore();
-  const [userInteractedRegion, setUserInteractedRegion] = useState<Region | null>(null);
-  const [isMapReady, setIsMapReady] = useState(false);
+  const [userMoved, setUserMoved] = useState<boolean>(false);
+  const [mapReady, setMapReady] = useState(false);
 
   // region計算をメモ化
   const displayRegion = useMemo<Region>(() => {
-    if (userInteractedRegion) {
-      console.log('MapScreen: region決定 - ソース: user_interaction', userInteractedRegion);
-      return userInteractedRegion;
-    }
-    
     if (location) {
       const gpsRegion = {
         latitude: location.latitude,
@@ -52,50 +47,11 @@ export default function MapScreen() {
     
     console.log('MapScreen: region決定 - ソース: default', DEFAULT_REGION);
     return DEFAULT_REGION;
-  }, [location, userInteractedRegion]);
+  }, [location]);
 
-  // MapView準備完了時のアニメーション
-  useEffect(() => {
-    if (isMapReady && !userInteractedRegion && location && mapRef.current) {
-      console.log('MapScreen: animateToRegion呼び出し（準備完了後）', displayRegion);
-      setTimeout(() => {
-        mapRef.current?.animateToRegion(displayRegion, 1000);
-      }, 100);
-    }
-  }, [isMapReady, location, userInteractedRegion, displayRegion]);
-
-  // 画面フォーカス時の再センタリング
-  useFocusEffect(
-    useCallback(() => {
-      console.log('MapScreen: 画面にフォーカス');
-      
-      if (isMapReady && location && mapRef.current && !userInteractedRegion) {
-        setTimeout(() => {
-          mapRef.current?.animateToRegion(displayRegion, 600);
-        }, 100);
-      }
-      
-      return () => {
-        console.log('MapScreen: 画面からフォーカスが外れる');
-        // 画面を離れる時はユーザー操作をリセット
-        setUserInteractedRegion(null);
-      };
-    }, [isMapReady, location, displayRegion, userInteractedRegion])
-  );
-
-  // コールバック関数
-  const handleRegionChangeComplete = useCallback((region: Region) => {
-    console.log('MapScreen: ユーザーが地図を操作', region);
-    setUserInteractedRegion(region);
-  }, []);
-
-  const handleMapReady = useCallback(() => {
-    console.log('MapScreen: MapViewの準備完了');
-    setIsMapReady(true);
-  }, []);
-
-  const handleCenterOnUser = useCallback(() => {
-    if (location && mapRef.current) {
+  // centerOnUser関数
+  const centerOnUser = useCallback(() => {
+    if (location && mapRef.current && mapReady) {
       const userRegion = {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -104,9 +60,30 @@ export default function MapScreen() {
       };
       console.log('MapScreen: 現在地へセンタリング', userRegion);
       mapRef.current.animateToRegion(userRegion, 1000);
-      setUserInteractedRegion(null);
+      setUserMoved(false);
+    } else {
+      console.log('MapScreen: centerOnUser条件未満 - location:', !!location, 'mapReady:', mapReady);
     }
-  }, [location]);
+  }, [location, mapReady]);
+
+  // 画面フォーカス時の再センタリング
+  useFocusEffect(
+    useCallback(() => {
+      if (mapReady) centerOnUser();
+      return () => setUserMoved(false);
+    }, [mapReady, centerOnUser]),
+  );
+
+  // コールバック関数
+  const handleRegionChangeComplete = useCallback((region: Region) => {
+    console.log('MapScreen: ユーザーが地図を操作', region);
+    setUserMoved(true);
+  }, []);
+
+  const handleMapReady = useCallback(() => {
+    console.log('MapScreen: MapViewの準備完了');
+    setMapReady(true);
+  }, []);
 
   // ========== レンダリング ==========
   return (
@@ -114,7 +91,7 @@ export default function MapScreen() {
       <Map
         ref={mapRef}
         region={displayRegion}
-        onMapReady={handleMapReady}
+        onSafeReady={handleMapReady}
         showUserMarker={!!location}
         onRegionChangeComplete={handleRegionChangeComplete}
       />
@@ -135,7 +112,7 @@ export default function MapScreen() {
       {location && (
         <TouchableOpacity
           style={styles.centerButton}
-          onPress={handleCenterOnUser}
+          onPress={centerOnUser}
           activeOpacity={0.7}
         >
           <Text style={styles.centerButtonText}>📍</Text>

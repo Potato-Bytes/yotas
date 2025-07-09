@@ -1,46 +1,50 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import MapView, { MapViewProps, PROVIDER_GOOGLE } from 'react-native-maps';
-import { StyleSheet } from 'react-native';
+import React, { forwardRef, useState, useCallback } from 'react';
+import MapView, { MapViewProps } from 'react-native-maps';
 
-interface MapProps extends MapViewProps {
+export interface MapProps extends MapViewProps {
+  /** region は必須。initialRegion は禁止 */
+  region: MapViewProps['region'];
   showUserMarker?: boolean;
+  onSafeReady?: () => void;
 }
 
-export const Map = forwardRef<MapView, MapProps>((props, ref) => {
-  const mapRef = useRef<MapView>(null);
-  const { region, showUserMarker = false, onMapReady, ...restProps } = props;
+export const Map = forwardRef<MapView, MapProps>(
+  ({ region, showUserMarker = true, onSafeReady, ...rest }, ref) => {
+    console.log('[Map] レンダリング時のprops', {
+      region,
+      hasRegion: !!region,
+      regionDetails: region,
+    });
 
-  useImperativeHandle(ref, () => mapRef.current!, []);
+    // MapView の onMapReady が呼ばれなくても onLayout は 100% 呼ばれる
+    const [ready, setReady] = useState(false);
 
-  // デバッグログ
-  console.log('[Map] レンダリング時のprops', {
-    region,
-    hasRegion: !!region,
-    regionDetails: region,
-  });
+    const fireReady = useCallback(() => {
+      if (!ready) {
+        console.log('[Map] Map準備完了');
+        setReady(true);
+        onSafeReady?.();
+      }
+    }, [ready, onSafeReady]);
 
-  return (
-    <MapView
-      ref={mapRef}
-      style={styles.map}
-      provider={PROVIDER_GOOGLE}
-      region={region}
-      showsUserLocation={showUserMarker}
-      showsMyLocationButton={false}
-      followsUserLocation={false}
-      onMapReady={() => {
-        console.log('[Map] MapView is ready');
-        onMapReady?.();
-      }}
-      {...restProps}
-    />
-  );
-});
+    return (
+      <MapView
+        ref={ref}
+        style={{ flex: 1 }}
+        region={region}                 // initialRegion を一切使わない
+        showsUserLocation={showUserMarker}
+        onMapReady={() => {
+          console.log('[Map] onMapReady発火');
+          fireReady();
+        }}
+        onLayout={() => {
+          console.log('[Map] onLayout発火');
+          fireReady();
+        }}
+        {...rest}
+      />
+    );
+  },
+);
 
 Map.displayName = 'Map';
-
-const styles = StyleSheet.create({
-  map: {
-    flex: 1,
-  },
-});
