@@ -125,8 +125,8 @@ const PostReviewScreen: React.FC = () => {
     if (location && !formLocation) {
       console.log('PostReviewScreen: 位置情報をフォームに設定');
       const newLocation = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude: location.latitude,
+        longitude: location.longitude,
       };
       setFormLocation(newLocation);
       updateLocation(newLocation);

@@ -16,7 +16,7 @@ const DEFAULT_REGION: Region = {
 export default function MapScreen() {
   // Zustandストアから位置情報を取得
   const { location, errorMsg, isLoading } = useLocationStore();
-  const refreshLocation = useLocationStore(state => state.refreshLocation);
+  const refresh = useLocationStore(state => state.refresh);
 
   // ユーザーがマップを操作した後のregionを保持
   const [userInteractedRegion, setUserInteractedRegion] = useState<Region | null>(null);
@@ -61,9 +61,9 @@ export default function MapScreen() {
     
     // 位置情報がない場合は更新を試みる
     if (!location) {
-      await refreshLocation();
+      await refresh();
     }
-  }, [location, refreshLocation]);
+  }, [location, refresh]);
 
   // ========== 宣言的なレンダリングロジック ==========
   
@@ -93,8 +93,8 @@ export default function MapScreen() {
   } else if (location) {
     // 優先度2: GPSの現在地が取得できている場合
     displayRegion = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
+      latitude: location.latitude,
+      longitude: location.longitude,
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
     };
@@ -124,7 +124,7 @@ export default function MapScreen() {
           </Text>
           <Button 
             title="再試行" 
-            onPress={refreshLocation}
+            onPress={refresh}
             color="#007AFF"
           />
         </View>
