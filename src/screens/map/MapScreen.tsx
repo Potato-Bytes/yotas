@@ -4,7 +4,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
-} from 'react';
+} from 'react-native';
 import {
   View,
   ActivityIndicator,
@@ -28,15 +28,19 @@ const DEFAULT_REGION: Region = {
 export default function MapScreen() {
   // ========== すべてのHookを最初に宣言（条件なし） ==========
   const mapRef = useRef<MapView>(null);
+  const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isComponentMounted = useRef(true);
   const { location, errorMsg, isLoading } = useLocationStore();
   
   /** region を完全にこの state だけで管理 */
-  const [region, setRegion] = useState<Region | null>(null);
-  const [mapReady, setMapReady] = useState(false);
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [mapLayoutComplete, setMapLayoutComplete] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   /** ① 位置情報が来たら一度だけ region を決定 */
   useEffect(() => {
-    if (!region && location) {
+    if (location && isComponentMounted.current) {
       const initialRegion = {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -45,13 +49,41 @@ export default function MapScreen() {
       };
       console.log('MapScreen: 初期region設定', initialRegion);
       setRegion(initialRegion);
+      setLocationError(null);
     }
-  }, [location, region]);
+  }, [location]);
+
+  /** ② 位置情報取得のタイムアウト処理 */
+  useEffect(() => {
+    if (isLoading && !location) {
+      locationTimeoutRef.current = setTimeout(() => {
+        if (isComponentMounted.current && isLoading) {
+          setLocationError('位置情報の取得がタイムアウトしました');
+        }
+      }, 30000);
+    }
+
+    return () => {
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+      }
+    };
+  }, [isLoading, location]);
+
+  /** ③ コンポーネントのクリーンアップ */
+  useEffect(() => {
+    return () => {
+      isComponentMounted.current = false;
+      if (locationTimeoutRef.current) {
+        clearTimeout(locationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // centerOnUser関数（region更新込み）
   const centerOnUser = useCallback(() => {
-    if (!location || !mapReady) {
-      console.log('MapScreen: centerOnUser条件未満 - location:', !!location, 'mapReady:', mapReady);
+    if (!location || !isMapReady) {
+      console.log('MapScreen: centerOnUser条件未満 - location:', !!location, 'mapReady:', isMapReady);
       return;
     }
     const userRegion = {
@@ -63,7 +95,20 @@ export default function MapScreen() {
     console.log('MapScreen: 現在地へセンタリング', userRegion);
     mapRef.current?.animateToRegion(userRegion, 500);
     setRegion(userRegion); // ★ props も同じ値に
-  }, [location, mapReady]);
+  }, [location, isMapReady]);
+
+  // onLayout Fallbackの実装
+  const handleMapLayout = useCallback(() => {
+    setMapLayoutComplete(true);
+    // onMapReadyが呼ばれない場合の対策
+    if (!isMapReady) {
+      setTimeout(() => {
+        if (isComponentMounted.current) {
+          setIsMapReady(true);
+        }
+      }, 500);
+    }
+  }, [isMapReady]);
 
   // 画面フォーカス時の復元
   useFocusEffect(
@@ -88,27 +133,32 @@ export default function MapScreen() {
 
   const handleMapReady = useCallback(() => {
     console.log('MapScreen: MapViewの準備完了');
-    setMapReady(true);
+    if (isComponentMounted.current) {
+      setIsMapReady(true);
+    }
   }, []);
 
   // ========== レンダリング ==========
-  console.log('MapScreen: レンダリング状態', { region, location, isLoading, errorMsg });
+  console.log('MapScreen: レンダリング状態', { region, location, isLoading, errorMsg, locationError });
   
   return (
     <View style={styles.container}>
       {/* デバッグ情報 */}
       <View style={styles.debugInfo}>
-        <Text>region: {region ? 'あり' : 'なし'}</Text>
-        <Text>location: {location ? 'あり' : 'なし'}</Text>
-        <Text>isLoading: {isLoading ? 'true' : 'false'}</Text>
-        <Text>errorMsg: {errorMsg || 'なし'}</Text>
+        <Text>Map Ready: {isMapReady ? 'true' : 'false'}</Text>
+        <Text>Map Layout: {mapLayoutComplete ? 'true' : 'false'}</Text>
+        <Text>Location: {location ? 'あり' : 'なし'}</Text>
+        <Text>Permission: {errorMsg || 'OK'}</Text>
+        <Text>Region: {region ? `${region.latitude.toFixed(4)},${region.longitude.toFixed(4)}` : 'なし'}</Text>
       </View>
       
-      {/* 一時的に無条件でMapを表示 */}
+      {/* 常にMapViewをレンダリング */}
       <Map
         ref={mapRef}
-        region={region || DEFAULT_REGION}
+        initialRegion={DEFAULT_REGION}
+        region={region}
         onSafeReady={handleMapReady}
+        onLayout={handleMapLayout}
         showUserMarker={!!location}
         onRegionChangeComplete={handleRegionChangeComplete}
       />
@@ -120,9 +170,9 @@ export default function MapScreen() {
         </View>
       )}
       
-      {errorMsg && (
+      {(errorMsg || locationError) && (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text style={styles.errorText}>{errorMsg || locationError}</Text>
         </View>
       )}
       
