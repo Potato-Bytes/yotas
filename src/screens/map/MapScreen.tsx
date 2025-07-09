@@ -1,24 +1,26 @@
-import React, {
-  useRef,
-  useState,
-  useMemo,
-  useEffect,
-  useCallback,
-} from 'react';
+// src/screens/map/MapScreen.tsx
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
-  ActivityIndicator,
   StyleSheet,
-  TouchableOpacity,
+  ActivityIndicator,
   Text,
+  Platform,
+  Dimensions,
+  TouchableOpacity,
 } from 'react-native';
-import MapView, { Region } from 'react-native-maps';
-import { useFocusEffect } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Map } from '../../components/Map';
+import MapView, { PROVIDER_GOOGLE, Marker, Region } from 'react-native-maps';
 import { useLocationStore } from '../../stores/locationStore';
+import { useReviewStore } from '../../stores/reviewStore';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
-// デフォルト地点（東京駅）
+const { width, height } = Dimensions.get('window');
+const ASPECT_RATIO = width / height;
+const LATITUDE_DELTA = 0.01;
+const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
+
+// デフォルトの位置（東京）
 const DEFAULT_REGION: Region = {
   latitude: 35.6762,
   longitude: 139.6503,
@@ -26,250 +28,372 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.0421,
 };
 
-const LATITUDE_DELTA = 0.01;
-const LONGITUDE_DELTA = 0.01;
-
-export default function MapScreen() {
-  // ========== すべてのHookを最初に宣言（条件なし） ==========
-  const mapRef = useRef<MapView>(null);
-  const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isComponentMounted = useRef(true);
-  const isScreenFocused = useRef(true);
-  const { location, errorMsg, isLoading } = useLocationStore();
+const MapScreen: React.FC = () => {
+  // Navigation hooks
+  const isFocused = useIsFocused();
   
-  /** region を完全にこの state だけで管理 */
-  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
-  const [lastValidRegion, setLastValidRegion] = useState<Region | null>(null);
-  const [isMapReady, setIsMapReady] = useState(false);
-  const [mapLayoutComplete, setMapLayoutComplete] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
+  // Zustand stores
+  const location = useLocationStore((state) => state.location);
+  const locationError = useLocationStore((state) => state.errorMsg);
+  const isLocationLoading = useLocationStore((state) => state.isLoading);
+  const { reviews } = useReviewStore();
 
-  /** ① 位置情報が来たら一度だけ region を決定 */
+  // Local state
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [lastValidRegion, setLastValidRegion] = useState<Region | null>(null);
+  
+  // Refs
+  const mapRef = useRef<MapView>(null);
+  const hasInitializedLocation = useRef(false);
+
+  // デバッグログ
+  console.log('MapScreen: レンダリング状態', {
+    region,
+    location,
+    isLoading: isLocationLoading,
+    errorMsg: locationError,
+    locationError,
+  });
+
+  // 初期位置設定（最初の1回のみ）
   useEffect(() => {
-    if (location && isComponentMounted.current) {
-      const initialRegion = {
+    if (location && !hasInitializedLocation.current) {
+      const newRegion: Region = {
         latitude: location.latitude,
         longitude: location.longitude,
         latitudeDelta: LATITUDE_DELTA,
         longitudeDelta: LONGITUDE_DELTA,
       };
-      console.log('MapScreen: 初期region設定', initialRegion);
-      setRegion(initialRegion);
-      setLastValidRegion(initialRegion);
-      setLocationError(null);
+      
+      console.log('MapScreen: 初期region設定', newRegion);
+      setRegion(newRegion);
+      setLastValidRegion(newRegion);
+      hasInitializedLocation.current = true;
     }
   }, [location]);
 
-  /** ② 位置情報取得のタイムアウト処理 */
-  useEffect(() => {
-    if (isLoading && !location) {
-      locationTimeoutRef.current = setTimeout(() => {
-        if (isComponentMounted.current && isLoading) {
-          setLocationError('位置情報の取得がタイムアウトしました');
+  // 画面フォーカス時の処理を改善
+  useFocusEffect(
+    useCallback(() => {
+      console.log('MapScreen: 画面フォーカス');
+      
+      // タイマーを使って確実に地図を更新
+      const timer = setTimeout(() => {
+        if (isFocused && mapRef.current) {
+          // 現在位置があれば使用、なければ最後の有効な位置を使用
+          const targetRegion = location ? {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            latitudeDelta: LATITUDE_DELTA,
+            longitudeDelta: LONGITUDE_DELTA,
+          } : lastValidRegion;
+          
+          if (targetRegion) {
+            console.log('MapScreen: 画面復帰 - 現在地にセンタリング');
+            centerToLocation(targetRegion);
+          }
         }
-      }, 30000);
+      }, 300);
+
+      return () => {
+        clearTimeout(timer);
+        console.log('MapScreen: 画面アンフォーカス');
+      };
+    }, [isFocused, location, lastValidRegion])
+  );
+
+  // 位置にセンタリングする共通関数
+  const centerToLocation = useCallback((targetRegion: Region) => {
+    if (!mapRef.current) return;
+    
+    // stateを更新
+    setRegion(targetRegion);
+    setLastValidRegion(targetRegion);
+    
+    // MapViewを直接操作
+    try {
+      // fitToCoordinatesを使用してより確実に移動
+      mapRef.current.fitToCoordinates(
+        [{
+          latitude: targetRegion.latitude,
+          longitude: targetRegion.longitude,
+        }],
+        {
+          edgePadding: {
+            top: 50,
+            right: 50,
+            bottom: 50,
+            left: 50,
+          },
+          animated: true,
+        }
+      );
+      
+      // animateToRegionも併用
+      setTimeout(() => {
+        mapRef.current?.animateToRegion(targetRegion, 800);
+      }, 100);
+    } catch (error) {
+      console.error('MapScreen: センタリングエラー', error);
     }
-
-    return () => {
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-      }
-    };
-  }, [isLoading, location]);
-
-  /** ③ コンポーネントのクリーンアップ */
-  useEffect(() => {
-    return () => {
-      isComponentMounted.current = false;
-      if (locationTimeoutRef.current) {
-        clearTimeout(locationTimeoutRef.current);
-      }
-    };
   }, []);
 
-  // centerOnUser関数（region更新込み）
+  // 現在地へのセンタリング
   const centerToCurrentLocation = useCallback(() => {
-    if (!location || !isMapReady) {
-      console.log('MapScreen: centerToCurrentLocation条件未満 - location:', !!location, 'mapReady:', isMapReady);
-      return;
+    if (location) {
+      const targetRegion: Region = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+      
+      console.log('MapScreen: 現在地へセンタリング', targetRegion);
+      centerToLocation(targetRegion);
     }
-    const userRegion = {
-      latitude: location.latitude,
-      longitude: location.longitude,
-      latitudeDelta: LATITUDE_DELTA,
-      longitudeDelta: LONGITUDE_DELTA,
-    };
-    console.log('MapScreen: 現在地へセンタリング', userRegion);
-    setRegion(userRegion);
-    setLastValidRegion(userRegion);
-    mapRef.current?.animateToRegion(userRegion, 500);
-  }, [location, isMapReady]);
+  }, [location, centerToLocation]);
 
-  // onLayout Fallbackの実装
+  // MapViewのイベントハンドラー
+  const handleMapReady = useCallback(() => {
+    console.log('MapScreen: Map is ready');
+    setIsMapReady(true);
+    
+    // マップ準備完了時に現在位置へ移動
+    if (location && !hasInitializedLocation.current) {
+      centerToCurrentLocation();
+    }
+  }, [location, centerToCurrentLocation]);
+
+  // onLayoutハンドラー
   const handleMapLayout = useCallback(() => {
-    setMapLayoutComplete(true);
-    // onMapReadyが呼ばれない場合の対策
+    console.log('MapScreen: Map layout complete');
     if (!isMapReady) {
-      setTimeout(() => {
-        if (isComponentMounted.current) {
-          setIsMapReady(true);
-        }
-      }, 500);
+      setIsMapReady(true);
     }
   }, [isMapReady]);
 
-  // 画面フォーカス時の復元
-  useFocusEffect(
-    useCallback(() => {
-      isScreenFocused.current = true;
-      // 画面復帰時
-      if (lastValidRegion && mapRef.current) {
-        console.log('MapScreen: 画面復帰 - 最後のregionで復元', lastValidRegion);
-        setRegion(lastValidRegion);
-        setTimeout(() => {
-          mapRef.current?.animateToRegion(lastValidRegion, 300);
-        }, 100);
-      } else if (location) {
-        console.log('MapScreen: 画面復帰 - 現在地にセンタリング');
-        centerToCurrentLocation();
-      }
-      return () => {
-        isScreenFocused.current = false;
-      };
-    }, [lastValidRegion, location, centerToCurrentLocation]),
-  );
-
-  // コールバック関数
+  // 地域変更の処理
   const handleRegionChangeComplete = useCallback((newRegion: Region) => {
-    console.log('MapScreen: ユーザーが地図を操作', newRegion);
-    // 有効な座標のみ保存（世界地図の座標は除外）
-    if (newRegion.latitude !== 0 && newRegion.longitude !== 0) {
+    // 有効なregionの場合のみ保存
+    if (newRegion && 
+        newRegion.latitude !== 0 && 
+        newRegion.longitude !== 0 &&
+        !isNaN(newRegion.latitude) &&
+        !isNaN(newRegion.longitude)) {
       setRegion(newRegion);
       setLastValidRegion(newRegion);
     }
   }, []);
 
-  const handleMapReady = useCallback(() => {
-    console.log('MapScreen: MapViewの準備完了');
-    if (isComponentMounted.current) {
-      setIsMapReady(true);
-      // 位置情報がある場合は強制的に現在位置へ移動
-      if (location && mapRef.current) {
-        const userRegion = {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          latitudeDelta: LATITUDE_DELTA,
-          longitudeDelta: LONGITUDE_DELTA,
-        };
-        setRegion(userRegion);
-        setLastValidRegion(userRegion);
-        mapRef.current.animateToRegion(userRegion, 1000);
-      }
-    }
-  }, [location]);
+  // カスタム現在地ボタン
+  const MyLocationButton = () => (
+    <TouchableOpacity
+      style={styles.myLocationButton}
+      onPress={centerToCurrentLocation}
+      activeOpacity={0.7}
+    >
+      <Icon name="my-location" size={24} color="#4285F4" />
+    </TouchableOpacity>
+  );
 
-  // ========== レンダリング ==========
-  console.log('MapScreen: レンダリング状態', { region, location, isLoading, errorMsg, locationError });
-  
+  // initialRegionの計算
+  const getInitialRegion = (): Region => {
+    if (location) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+    }
+    return DEFAULT_REGION;
+  };
+
   return (
     <View style={styles.container}>
-      {/* デバッグ情報 */}
-      <View style={styles.debugInfo}>
-        <Text>Map Ready: {isMapReady ? 'true' : 'false'}</Text>
-        <Text>Map Layout: {mapLayoutComplete ? 'true' : 'false'}</Text>
-        <Text>Location: {location ? 'あり' : 'なし'}</Text>
-        <Text>Permission: {errorMsg || 'OK'}</Text>
-        <Text>Region: {region ? `${region.latitude.toFixed(4)},${region.longitude.toFixed(4)}` : 'なし'}</Text>
-      </View>
-      
-      {/* 常にMapViewをレンダリング */}
-      <Map
+      <MapView
         ref={mapRef}
-        initialRegion={DEFAULT_REGION}
-        region={region}
-        onSafeReady={handleMapReady}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        initialRegion={getInitialRegion()}
+        onMapReady={handleMapReady}
         onLayout={handleMapLayout}
-        showUserMarker={!!location}
         onRegionChangeComplete={handleRegionChangeComplete}
-      />
-      
-      {isLoading && !location && (
+        showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={true}
+        loadingEnabled={true}
+        loadingIndicatorColor="#666666"
+        loadingBackgroundColor="#eeeeee"
+        moveOnMarkerPress={false}
+        // パフォーマンス設定
+        zoomEnabled={true}
+        zoomControlEnabled={true}
+        rotateEnabled={true}
+        scrollEnabled={true}
+        pitchEnabled={true}
+        toolbarEnabled={false}
+        // 追加設定
+        mapType="standard"
+        userLocationPriority="high"
+        userLocationUpdateInterval={5000}
+        userLocationFastestInterval={2000}
+        followsUserLocation={false}
+        showsIndoors={true}
+        showsBuildings={true}
+        cacheEnabled={false} // キャッシュを無効化
+        minZoomLevel={3}
+        maxZoomLevel={20}
+      >
+        {/* レビューマーカーの表示 */}
+        {reviews.map((review) => (
+          <Marker
+            key={review.id}
+            coordinate={{
+              latitude: review.latitude,
+              longitude: review.longitude,
+            }}
+            title={review.title}
+            description={review.description}
+          />
+        ))}
+      </MapView>
+
+      {/* カスタム現在地ボタン */}
+      <MyLocationButton />
+
+      {/* ローディング表示 */}
+      {isLocationLoading && !location && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>現在地を取得中...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4285F4" />
+            <Text style={styles.loadingText}>位置情報を取得中...</Text>
+          </View>
         </View>
       )}
-      
-      {(errorMsg || locationError) && (
+
+      {/* エラー表示 */}
+      {locationError && !isLocationLoading && (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{errorMsg || locationError}</Text>
+          <View style={styles.errorBanner}>
+            <Icon name="error-outline" size={20} color="#ff6b6b" />
+            <Text style={styles.errorText}>{locationError}</Text>
+          </View>
         </View>
       )}
-      
-      {location && (
-        <TouchableOpacity
-          style={styles.myLocationButton}
-          onPress={centerToCurrentLocation}
-          activeOpacity={0.7}
-        >
-          <Icon name="my-location" size={24} color="#4285F4" />
-        </TouchableOpacity>
+
+      {/* デバッグ情報（開発環境のみ） */}
+      {__DEV__ && (
+        <View style={styles.debugContainer}>
+          <Text style={styles.debugText}>
+            Ready: {isMapReady ? '✓' : '✗'} | Focus: {isFocused ? '✓' : '✗'}
+          </Text>
+          {location && (
+            <Text style={styles.debugText}>
+              Loc: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+            </Text>
+          )}
+          <Text style={styles.debugText}>
+            Reg: {region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}
+          </Text>
+        </View>
       )}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  loadingOverlay: {
+  map: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(255, 0, 0, 0.9)',
-    padding: 10,
-    borderRadius: 5,
-  },
-  errorText: {
-    color: 'white',
-    textAlign: 'center',
   },
   myLocationButton: {
     position: 'absolute',
-    bottom: 100,
-    right: 20,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    right: 16,
+    bottom: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    backgroundColor: 'white',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
   },
-  debugInfo: {
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
+  },
+  errorContainer: {
     position: 'absolute',
-    top: 50,
+    top: Platform.OS === 'ios' ? 100 : 80,
+    left: 20,
+    right: 20,
+  },
+  errorBanner: {
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff6b6b',
+  },
+  errorText: {
+    color: '#333',
+    fontSize: 14,
+    marginLeft: 10,
+    flex: 1,
+  },
+  debugContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
     left: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    padding: 8,
     borderRadius: 5,
-    zIndex: 1000,
+  },
+  debugText: {
+    color: 'white',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });
+
+export default MapScreen;
