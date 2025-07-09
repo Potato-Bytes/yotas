@@ -1,23 +1,18 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import MapView, { MapViewProps, PROVIDER_GOOGLE } from 'react-native-maps';
 import { StyleSheet } from 'react-native';
-import MapView, { Region } from 'react-native-maps';
-import { brightMapStyle } from '../constants/mapStyles';
 
-type Props = {
-  region: Region;
-  onRegionChangeComplete: (newRegion: Region) => void;
+interface MapProps extends MapViewProps {
   showUserMarker?: boolean;
-  onMapReady?: () => void;
-};
+}
 
-// forwardRefを使用してMapViewへの参照を外部に公開
-export const Map = forwardRef<MapView, Props>(({ region, onRegionChangeComplete, showUserMarker = true, onMapReady }, ref) => {
+export const Map = forwardRef<MapView, MapProps>((props, ref) => {
   const mapRef = useRef<MapView>(null);
+  const { region, showUserMarker = false, onMapReady, ...restProps } = props;
 
-  // 外部からMapViewを制御できるようにする
   useImperativeHandle(ref, () => mapRef.current!, []);
 
-  // デバッグログを追加
+  // デバッグログ
   console.log('[Map] レンダリング時のprops', {
     region,
     hasRegion: !!region,
@@ -28,17 +23,16 @@ export const Map = forwardRef<MapView, Props>(({ region, onRegionChangeComplete,
     <MapView
       ref={mapRef}
       style={styles.map}
+      provider={PROVIDER_GOOGLE}
       region={region}
-      customMapStyle={brightMapStyle}
-      onRegionChangeComplete={onRegionChangeComplete}
-      onMapReady={onMapReady}
       showsUserLocation={showUserMarker}
       showsMyLocationButton={false}
       followsUserLocation={false}
-      // 以下のプロパティは必要最小限に
-      rotateEnabled={true}
-      scrollEnabled={true}
-      zoomEnabled={true}
+      onMapReady={() => {
+        console.log('[Map] MapView is ready');
+        onMapReady?.();
+      }}
+      {...restProps}
     />
   );
 });
@@ -47,7 +41,6 @@ Map.displayName = 'Map';
 
 const styles = StyleSheet.create({
   map: {
-    width: '100%',
-    height: '100%',
+    flex: 1,
   },
 });

@@ -1,9 +1,21 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Button, TouchableOpacity } from 'react-native';
+import React, {
+  useRef,
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+} from 'react';
+import {
+  View,
+  ActivityIndicator,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+} from 'react-native';
 import MapView, { Region } from 'react-native-maps';
+import { useFocusEffect } from '@react-navigation/native';
 import { Map } from '../../components/Map';
 import { useLocationStore } from '../../stores/locationStore';
-import { useNavigation } from '@react-navigation/native';
 
 // デフォルト地点（東京駅）
 const DEFAULT_REGION: Region = {
@@ -16,9 +28,7 @@ const DEFAULT_REGION: Region = {
 export default function MapScreen() {
   // ========== すべてのHookを最初に宣言（条件なし） ==========
   const mapRef = useRef<MapView>(null);
-  const navigation = useNavigation();
   const { location, errorMsg, isLoading } = useLocationStore();
-  const refresh = useLocationStore(state => state.refresh);
   const [userInteractedRegion, setUserInteractedRegion] = useState<Region | null>(null);
   const [isMapReady, setIsMapReady] = useState(false);
 
@@ -44,39 +54,36 @@ export default function MapScreen() {
     return DEFAULT_REGION;
   }, [location, userInteractedRegion]);
 
-  // フォーカス時のログ出力
+  // MapView準備完了時のアニメーション
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('MapScreen: 画面にフォーカス');
-      setUserInteractedRegion(null); // タブ切り替え時にユーザー操作をリセット
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  // アンフォーカス時のログ出力
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('blur', () => {
-      console.log('MapScreen: 画面からフォーカスが外れる');
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  // 位置情報更新時のアニメーション
-  useEffect(() => {
-    if (!userInteractedRegion && location && mapRef.current && isMapReady) {
-      console.log('MapScreen: animateToRegion呼び出し', {
-        latitude: displayRegion.latitude,
-        longitude: displayRegion.longitude,
-      });
-      
-      // タイミングを少し遅らせる
+    if (isMapReady && !userInteractedRegion && location && mapRef.current) {
+      console.log('MapScreen: animateToRegion呼び出し（準備完了後）', displayRegion);
       setTimeout(() => {
         mapRef.current?.animateToRegion(displayRegion, 1000);
       }, 100);
     }
-  }, [location, userInteractedRegion, displayRegion, isMapReady]);
+  }, [isMapReady, location, userInteractedRegion, displayRegion]);
 
-  // コールバック関数の定義
+  // 画面フォーカス時の再センタリング
+  useFocusEffect(
+    useCallback(() => {
+      console.log('MapScreen: 画面にフォーカス');
+      
+      if (isMapReady && location && mapRef.current && !userInteractedRegion) {
+        setTimeout(() => {
+          mapRef.current?.animateToRegion(displayRegion, 600);
+        }, 100);
+      }
+      
+      return () => {
+        console.log('MapScreen: 画面からフォーカスが外れる');
+        // 画面を離れる時はユーザー操作をリセット
+        setUserInteractedRegion(null);
+      };
+    }, [isMapReady, location, displayRegion, userInteractedRegion])
+  );
+
+  // コールバック関数
   const handleRegionChangeComplete = useCallback((region: Region) => {
     console.log('MapScreen: ユーザーが地図を操作', region);
     setUserInteractedRegion(region);
@@ -101,20 +108,21 @@ export default function MapScreen() {
     }
   }, [location]);
 
-  // ========== レンダリング（条件分岐はJSX内で） ==========
+  // ========== レンダリング ==========
   return (
     <View style={styles.container}>
       <Map
         ref={mapRef}
         region={displayRegion}
+        onMapReady={handleMapReady}
         showUserMarker={!!location}
         onRegionChangeComplete={handleRegionChangeComplete}
-        onMapReady={handleMapReady}
       />
       
       {isLoading && !location && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={styles.loadingText}>現在地を取得中...</Text>
         </View>
       )}
       
@@ -145,7 +153,12 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   errorContainer: {
     position: 'absolute',
