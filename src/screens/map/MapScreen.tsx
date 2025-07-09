@@ -1,5 +1,5 @@
 // src/screens/map/MapScreen.tsx
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,7 +12,7 @@ import {
 import MapView, { PROVIDER_GOOGLE, Marker, Region } from 'react-native-maps';
 import { useLocationStore } from '../../stores/locationStore';
 import { useReviewStore } from '../../stores';
-import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import { useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const { width, height } = Dimensions.get('window');
@@ -20,12 +20,12 @@ const ASPECT_RATIO = width / height;
 const LATITUDE_DELTA = 0.01;
 const LONGITUDE_DELTA = LATITUDE_DELTA * ASPECT_RATIO;
 
-// デフォルトの位置（東京）
-const DEFAULT_REGION: Region = {
-  latitude: 35.6762,
-  longitude: 139.6503,
-  latitudeDelta: 0.0922,
-  longitudeDelta: 0.0421,
+// 札幌のデフォルト位置（ユーザーの位置）
+const SAPPORO_REGION: Region = {
+  latitude: 43.0793,
+  longitude: 141.3077,
+  latitudeDelta: LATITUDE_DELTA,
+  longitudeDelta: LONGITUDE_DELTA,
 };
 
 const MapScreen: React.FC = () => {
@@ -38,150 +38,75 @@ const MapScreen: React.FC = () => {
   const isLocationLoading = useLocationStore((state) => state.isLoading);
   const { reviews } = useReviewStore();
 
-  // Local state
-  const [region, setRegion] = useState<Region>(() => {
-    // 初期値を位置情報から設定
-    if (location) {
-      return {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
-    }
-    return DEFAULT_REGION;
-  });
-  const [isMapReady, setIsMapReady] = useState(false);
-  
-  // Refs
+  // MapView ref
   const mapRef = useRef<MapView>(null);
-  const hasAnimatedToLocation = useRef(false);
-  const lastFocusTime = useRef(0);
+  
+  // State
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // デバッグログ
   console.log('MapScreen: レンダリング状態', {
-    region,
+    region: location ? {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: LATITUDE_DELTA,
+      longitudeDelta: LONGITUDE_DELTA,
+    } : SAPPORO_REGION,
     location,
     isLoading: isLocationLoading,
     errorMsg: locationError,
     locationError,
   });
 
-  // 位置情報が更新されたとき
+  // 画面フォーカス時に地図を更新
   useEffect(() => {
-    if (location && !hasAnimatedToLocation.current && isMapReady) {
-      const newRegion: Region = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
+    if (isFocused && isMapReady && mapRef.current) {
+      // 少し遅延を入れてタブ切り替えアニメーション完了を待つ
+      const timer = setTimeout(() => {
+        centerToCurrentLocation();
+      }, 300);
       
-      console.log('MapScreen: 初期region設定', newRegion);
-      setRegion(newRegion);
-      
-      // MapViewに直接アニメーション
-      if (mapRef.current) {
-        mapRef.current.animateToRegion(newRegion, 1000);
-        hasAnimatedToLocation.current = true;
-      }
+      return () => clearTimeout(timer);
     }
-  }, [location, isMapReady]);
+  }, [isFocused, isMapReady]);
 
-  // 画面フォーカス時の処理（デバウンス付き）
-  useFocusEffect(
-    useCallback(() => {
-      const now = Date.now();
-      // 前回のフォーカスから500ms以内の場合は無視
-      if (now - lastFocusTime.current < 500) {
-        return;
-      }
-      lastFocusTime.current = now;
-
-      console.log('MapScreen: 画面フォーカス');
-      
-      // フォーカス時に現在位置へ移動
-      if (isFocused && location && mapRef.current && isMapReady) {
-        const timer = setTimeout(() => {
-          if (mapRef.current && isFocused) {
-            const targetRegion: Region = {
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: LATITUDE_DELTA,
-              longitudeDelta: LONGITUDE_DELTA,
-            };
-            
-            console.log('MapScreen: 画面復帰 - 現在地にセンタリング');
-            mapRef.current.animateCamera({
-              center: {
-                latitude: targetRegion.latitude,
-                longitude: targetRegion.longitude,
-              },
-              zoom: 15, // ズームレベルを指定
-            }, { duration: 1000 });
-          }
-        }, 500); // タブ切り替えアニメーション完了を待つ
-
-        return () => {
-          clearTimeout(timer);
-          console.log('MapScreen: 画面アンフォーカス');
-        };
-      }
-    }, [isFocused, location, isMapReady])
-  );
+  // 位置情報が更新されたら地図を移動
+  useEffect(() => {
+    if (location && isMapReady && !hasInitialized && mapRef.current) {
+      console.log('MapScreen: 初期位置設定', location);
+      centerToCurrentLocation();
+      setHasInitialized(true);
+    }
+  }, [location, isMapReady, hasInitialized]);
 
   // 現在地へのセンタリング
-  const centerToCurrentLocation = useCallback(() => {
-    if (location && mapRef.current) {
-      const targetRegion: Region = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
-      
-      console.log('MapScreen: 現在地へセンタリング', targetRegion);
-      
-      setRegion(targetRegion);
-      mapRef.current.animateCamera({
-        center: {
-          latitude: targetRegion.latitude,
-          longitude: targetRegion.longitude,
-        },
-        zoom: 15,
-      }, { duration: 1000 });
-    }
-  }, [location]);
+  const centerToCurrentLocation = () => {
+    if (!mapRef.current) return;
+    
+    const targetRegion = location ? {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: LATITUDE_DELTA,
+      longitudeDelta: LONGITUDE_DELTA,
+    } : SAPPORO_REGION;
+    
+    console.log('MapScreen: 現在地へセンタリング', targetRegion);
+    
+    // アニメーションで移動
+    mapRef.current.animateToRegion(targetRegion, 1000);
+  };
 
   // MapViewのイベントハンドラー
-  const handleMapReady = useCallback(() => {
+  const handleMapReady = () => {
     console.log('MapScreen: Map is ready');
     setIsMapReady(true);
     
-    // マップ準備完了時、位置情報があれば移動
-    if (location && !hasAnimatedToLocation.current && mapRef.current) {
-      const initialRegion: Region = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
-      mapRef.current.animateToRegion(initialRegion, 1000);
-      hasAnimatedToLocation.current = true;
-    }
-  }, [location]);
-
-  // 地域変更の処理
-  const handleRegionChangeComplete = useCallback((newRegion: Region) => {
-    // 有効なregionの場合のみ更新
-    if (newRegion && 
-        newRegion.latitude && 
-        newRegion.longitude &&
-        Math.abs(newRegion.latitude) <= 90 &&
-        Math.abs(newRegion.longitude) <= 180) {
-      setRegion(newRegion);
-    }
-  }, []);
+    // マップ準備完了後、すぐに現在位置へ移動
+    setTimeout(() => {
+      centerToCurrentLocation();
+    }, 100);
+  };
 
   // カスタム現在地ボタン
   const MyLocationButton = () => (
@@ -194,6 +119,20 @@ const MapScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  // 初期リージョンの決定
+  const getInitialRegion = (): Region => {
+    // 位置情報があればそれを使用、なければ札幌
+    if (location) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+    }
+    return SAPPORO_REGION;
+  };
+
 
   return (
     <View style={styles.container}>
@@ -201,9 +140,8 @@ const MapScreen: React.FC = () => {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={region}
+        initialRegion={getInitialRegion()}
         onMapReady={handleMapReady}
-        onRegionChangeComplete={handleRegionChangeComplete}
         showsUserLocation={true}
         showsMyLocationButton={false}
         showsCompass={true}
@@ -218,19 +156,6 @@ const MapScreen: React.FC = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         toolbarEnabled={false}
-        // 重要: アニメーション設定
-        animationEnabled={true}
-        // カメラ設定
-        camera={{
-          center: {
-            latitude: region.latitude,
-            longitude: region.longitude,
-          },
-          pitch: 0,
-          heading: 0,
-          altitude: 0,
-          zoom: 15,
-        }}
       >
         {/* レビューマーカーの表示 */}
         {reviews.map((review) => (
@@ -247,7 +172,7 @@ const MapScreen: React.FC = () => {
       </MapView>
 
       {/* カスタム現在地ボタン */}
-      {location && <MyLocationButton />}
+      <MyLocationButton />
 
       {/* ローディング表示 */}
       {isLocationLoading && !location && (
@@ -281,7 +206,7 @@ const MapScreen: React.FC = () => {
             </Text>
           )}
           <Text style={styles.debugText}>
-            Reg: {region.latitude.toFixed(4)}, {region.longitude.toFixed(4)}
+            Reg: {getInitialRegion().latitude.toFixed(4)}, {getInitialRegion().longitude.toFixed(4)}
           </Text>
         </View>
       )}
