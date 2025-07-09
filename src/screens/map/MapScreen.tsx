@@ -39,13 +39,24 @@ const MapScreen: React.FC = () => {
   const { reviews } = useReviewStore();
 
   // Local state
-  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [region, setRegion] = useState<Region>(() => {
+    // 初期値を位置情報から設定
+    if (location) {
+      return {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+    }
+    return DEFAULT_REGION;
+  });
   const [isMapReady, setIsMapReady] = useState(false);
-  const [lastValidRegion, setLastValidRegion] = useState<Region | null>(null);
   
   // Refs
   const mapRef = useRef<MapView>(null);
-  const hasInitializedLocation = useRef(false);
+  const hasAnimatedToLocation = useRef(false);
+  const lastFocusTime = useRef(0);
 
   // デバッグログ
   console.log('MapScreen: レンダリング状態', {
@@ -56,9 +67,9 @@ const MapScreen: React.FC = () => {
     locationError,
   });
 
-  // 初期位置設定（最初の1回のみ）
+  // 位置情報が更新されたとき
   useEffect(() => {
-    if (location && !hasInitializedLocation.current) {
+    if (location && !hasAnimatedToLocation.current && isMapReady) {
       const newRegion: Region = {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -68,80 +79,60 @@ const MapScreen: React.FC = () => {
       
       console.log('MapScreen: 初期region設定', newRegion);
       setRegion(newRegion);
-      setLastValidRegion(newRegion);
-      hasInitializedLocation.current = true;
+      
+      // MapViewに直接アニメーション
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(newRegion, 1000);
+        hasAnimatedToLocation.current = true;
+      }
     }
-  }, [location]);
+  }, [location, isMapReady]);
 
-  // 画面フォーカス時の処理を改善
+  // 画面フォーカス時の処理（デバウンス付き）
   useFocusEffect(
     useCallback(() => {
+      const now = Date.now();
+      // 前回のフォーカスから500ms以内の場合は無視
+      if (now - lastFocusTime.current < 500) {
+        return;
+      }
+      lastFocusTime.current = now;
+
       console.log('MapScreen: 画面フォーカス');
       
-      // タイマーを使って確実に地図を更新
-      const timer = setTimeout(() => {
-        if (isFocused && mapRef.current) {
-          // 現在位置があれば使用、なければ最後の有効な位置を使用
-          const targetRegion = location ? {
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: LATITUDE_DELTA,
-            longitudeDelta: LONGITUDE_DELTA,
-          } : lastValidRegion;
-          
-          if (targetRegion) {
+      // フォーカス時に現在位置へ移動
+      if (isFocused && location && mapRef.current && isMapReady) {
+        const timer = setTimeout(() => {
+          if (mapRef.current && isFocused) {
+            const targetRegion: Region = {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              latitudeDelta: LATITUDE_DELTA,
+              longitudeDelta: LONGITUDE_DELTA,
+            };
+            
             console.log('MapScreen: 画面復帰 - 現在地にセンタリング');
-            centerToLocation(targetRegion);
+            mapRef.current.animateCamera({
+              center: {
+                latitude: targetRegion.latitude,
+                longitude: targetRegion.longitude,
+              },
+              zoom: 15, // ズームレベルを指定
+            }, { duration: 1000 });
           }
-        }
-      }, 300);
+        }, 500); // タブ切り替えアニメーション完了を待つ
 
-      return () => {
-        clearTimeout(timer);
-        console.log('MapScreen: 画面アンフォーカス');
-      };
-    }, [isFocused, location, lastValidRegion])
+        return () => {
+          clearTimeout(timer);
+          console.log('MapScreen: 画面アンフォーカス');
+        };
+      }
+    }, [isFocused, location, isMapReady])
   );
-
-  // 位置にセンタリングする共通関数
-  const centerToLocation = useCallback((targetRegion: Region) => {
-    if (!mapRef.current) return;
-    
-    // stateを更新
-    setRegion(targetRegion);
-    setLastValidRegion(targetRegion);
-    
-    // MapViewを直接操作
-    try {
-      // fitToCoordinatesを使用してより確実に移動
-      mapRef.current.fitToCoordinates(
-        [{
-          latitude: targetRegion.latitude,
-          longitude: targetRegion.longitude,
-        }],
-        {
-          edgePadding: {
-            top: 50,
-            right: 50,
-            bottom: 50,
-            left: 50,
-          },
-          animated: true,
-        }
-      );
-      
-      // animateToRegionも併用
-      setTimeout(() => {
-        mapRef.current?.animateToRegion(targetRegion, 800);
-      }, 100);
-    } catch (error) {
-      console.error('MapScreen: センタリングエラー', error);
-    }
-  }, []);
 
   // 現在地へのセンタリング
   const centerToCurrentLocation = useCallback(() => {
-    if (location) {
+    if (location && mapRef.current) {
       const targetRegion: Region = {
         latitude: location.latitude,
         longitude: location.longitude,
@@ -150,39 +141,45 @@ const MapScreen: React.FC = () => {
       };
       
       console.log('MapScreen: 現在地へセンタリング', targetRegion);
-      centerToLocation(targetRegion);
+      
+      setRegion(targetRegion);
+      mapRef.current.animateCamera({
+        center: {
+          latitude: targetRegion.latitude,
+          longitude: targetRegion.longitude,
+        },
+        zoom: 15,
+      }, { duration: 1000 });
     }
-  }, [location, centerToLocation]);
+  }, [location]);
 
   // MapViewのイベントハンドラー
   const handleMapReady = useCallback(() => {
     console.log('MapScreen: Map is ready');
     setIsMapReady(true);
     
-    // マップ準備完了時に現在位置へ移動
-    if (location && !hasInitializedLocation.current) {
-      centerToCurrentLocation();
+    // マップ準備完了時、位置情報があれば移動
+    if (location && !hasAnimatedToLocation.current && mapRef.current) {
+      const initialRegion: Region = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: LATITUDE_DELTA,
+        longitudeDelta: LONGITUDE_DELTA,
+      };
+      mapRef.current.animateToRegion(initialRegion, 1000);
+      hasAnimatedToLocation.current = true;
     }
-  }, [location, centerToCurrentLocation]);
-
-  // onLayoutハンドラー
-  const handleMapLayout = useCallback(() => {
-    console.log('MapScreen: Map layout complete');
-    if (!isMapReady) {
-      setIsMapReady(true);
-    }
-  }, [isMapReady]);
+  }, [location]);
 
   // 地域変更の処理
   const handleRegionChangeComplete = useCallback((newRegion: Region) => {
-    // 有効なregionの場合のみ保存
+    // 有効なregionの場合のみ更新
     if (newRegion && 
-        newRegion.latitude !== 0 && 
-        newRegion.longitude !== 0 &&
-        !isNaN(newRegion.latitude) &&
-        !isNaN(newRegion.longitude)) {
+        newRegion.latitude && 
+        newRegion.longitude &&
+        Math.abs(newRegion.latitude) <= 90 &&
+        Math.abs(newRegion.longitude) <= 180) {
       setRegion(newRegion);
-      setLastValidRegion(newRegion);
     }
   }, []);
 
@@ -197,18 +194,6 @@ const MapScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  // initialRegionの計算
-  const getInitialRegion = (): Region => {
-    if (location) {
-      return {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: LATITUDE_DELTA,
-        longitudeDelta: LONGITUDE_DELTA,
-      };
-    }
-    return DEFAULT_REGION;
-  };
 
   return (
     <View style={styles.container}>
@@ -216,9 +201,8 @@ const MapScreen: React.FC = () => {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={getInitialRegion()}
+        initialRegion={region}
         onMapReady={handleMapReady}
-        onLayout={handleMapLayout}
         onRegionChangeComplete={handleRegionChangeComplete}
         showsUserLocation={true}
         showsMyLocationButton={false}
@@ -234,17 +218,19 @@ const MapScreen: React.FC = () => {
         scrollEnabled={true}
         pitchEnabled={true}
         toolbarEnabled={false}
-        // 追加設定
-        mapType="standard"
-        userLocationPriority="high"
-        userLocationUpdateInterval={5000}
-        userLocationFastestInterval={2000}
-        followsUserLocation={false}
-        showsIndoors={true}
-        showsBuildings={true}
-        cacheEnabled={false} // キャッシュを無効化
-        minZoomLevel={3}
-        maxZoomLevel={20}
+        // 重要: アニメーション設定
+        animationEnabled={true}
+        // カメラ設定
+        camera={{
+          center: {
+            latitude: region.latitude,
+            longitude: region.longitude,
+          },
+          pitch: 0,
+          heading: 0,
+          altitude: 0,
+          zoom: 15,
+        }}
       >
         {/* レビューマーカーの表示 */}
         {reviews.map((review) => (
@@ -261,7 +247,7 @@ const MapScreen: React.FC = () => {
       </MapView>
 
       {/* カスタム現在地ボタン */}
-      <MyLocationButton />
+      {location && <MyLocationButton />}
 
       {/* ローディング表示 */}
       {isLocationLoading && !location && (
