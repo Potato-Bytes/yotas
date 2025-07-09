@@ -8,3 +8,12 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+# Google Play Services
+-keep class com.google.android.gms.** { *; }
+-keep interface com.google.android.gms.** { *; }
+-dontwarn com.google.android.gms.**
+
+# Location Services
+-keep class com.agontuk.RNFusedLocation.** { *; }
+-dontwarn com.google.android.gms.location.**

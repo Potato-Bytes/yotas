@@ -122,7 +122,7 @@ dependencies {
 
     // Google Play Services - 明示的に指定
     implementation "com.google.android.gms:play-services-location:21.0.1"
-    implementation "com.google.android.gms:play-services-maps:18.2.0"
+    implementation "com.google.android.gms:play-services-maps:19.0.0"
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
