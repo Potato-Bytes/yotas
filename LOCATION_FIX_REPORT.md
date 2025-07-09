@@ -234,3 +234,126 @@ npx react-native run-ios
 **改修実施者**: Claude Code  
 **ブランチ**: `fix/location-refactor-final`  
 **影響範囲**: 位置情報関連の全機能
+
+---
+
+## 追加修正 - 実機テスト時の課題対応
+
+### 発生した課題
+
+#### 1. 無限クラッシュ問題
+実機テストでアプリが無限にクラッシュする問題が発生しました。
+
+**発生エラー**:
+```
+Cannot get UIManager because the context doesn't contain an active CatalystInstance.
+```
+
+**根本原因**:
+- Android API Level 35 + React Native 0.80.1 + New Architecture の組み合わせで不整合
+- androidx.core:core:1.15.0 がAPI Level 35を要求するが、React Native 0.80.1では対応不完全
+
+#### 2. 位置情報エラー
+```
+Could not invoke RN FusedLocation.getCurrentPosition
+Found interface com.google.android.gms.location.FusedLocationProviderClient, but class was expected
+```
+
+**根本原因**:
+- react-native-geolocation-service が内部で Google Play Services の FusedLocationProviderClient を使用
+- API Level 34 環境での Google Play Services の不整合
+
+### 実施した修正
+
+#### Phase 1: 原因特定
+- ネイティブログの詳細収集
+- 最小構成での動作確認 (Hello World アプリ)
+
+#### Phase 2: 緊急修正 - API Level ダウングレード
+**android/build.gradle**:
+```gradle
+buildscript {
+    ext {
+        buildToolsVersion = "34.0.0"    // 35.0.0 から変更
+        compileSdkVersion = 34          // 35 から変更
+        targetSdkVersion = 34           // 35 から変更
+        // ...
+    }
+}
+```
+
+**android/gradle.properties**:
+```properties
+newArchEnabled=false    // true から変更
+hermesEnabled=false     // true から変更
+```
+
+**android/app/build.gradle**:
+```gradle
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.core:core:1.13.1'
+        force 'androidx.core:core-ktx:1.13.1'
+    }
+}
+```
+
+#### Phase 3: 段階的機能復旧
+1. 最小構成での動作確認 → 成功
+2. 元のApp.tsxに戻して全機能テスト → 位置情報エラー発生
+
+### 現在の状態
+
+#### 解決済み
+- ✅ 無限クラッシュの解消
+- ✅ アプリの起動・基本動作
+- ✅ ログイン機能の動作
+
+#### 残存課題
+- ❌ 位置情報取得エラー (FusedLocationProviderClient関連)
+- ❌ Google Play Services の依存関係問題
+
+### 技術的詳細
+
+#### 使用環境
+- **React Native**: 0.80.1
+- **Android API Level**: 34 (35から変更)
+- **Build Tools**: 34.0.0
+- **New Architecture**: 無効化
+- **Hermes**: 無効化 (JavaScriptCore使用)
+
+#### 依存関係強制解決
+```gradle
+androidx.core:core:1.13.1 (API 34互換)
+androidx.core:core-ktx:1.13.1 (API 34互換)
+```
+
+### 次回対応予定
+
+#### 位置情報問題の解決策
+1. **Option A**: react-native-geolocation-service の設定見直し
+2. **Option B**: Google Play Services の依存関係修正
+3. **Option C**: 別の位置情報ライブラリへの移行
+
+#### 推奨アプローチ
+1. Google Play Services の正しいバージョン確認
+2. react-native-geolocation-service の Android 設定見直し
+3. 必要に応じて代替ライブラリの検討
+
+### 学習事項
+
+#### React Native 0.80.1 の制約
+- API Level 35 との組み合わせで不安定
+- New Architecture は実験的機能のため無効化推奨
+- Hermes よりも JavaScriptCore が安定
+
+#### Android 開発環境
+- API Level のダウングレードは依存関係の慎重な管理が必要
+- androidx.core の強制バージョン指定が有効
+- Build Tools バージョンの整合性が重要
+
+---
+
+**最終更新**: 2025年7月9日 12:30  
+**ステータス**: 基本動作確認済み、位置情報機能要修正  
+**次回作業**: Google Play Services 依存関係の修正
