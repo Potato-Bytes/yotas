@@ -4,7 +4,7 @@ import React, {
   useMemo,
   useEffect,
   useCallback,
-} from 'react-native';
+} from 'react';
 import {
   View,
   ActivityIndicator,
