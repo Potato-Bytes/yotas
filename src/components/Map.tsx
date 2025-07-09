@@ -33,6 +33,11 @@ export const Map = forwardRef<MapView, MapProps>(
         style={{ flex: 1 }}
         region={region}                 // initialRegion を一切使わない
         showsUserLocation={showUserMarker}
+        showsMyLocationButton={false}   // デフォルトボタンを無効化
+        userLocationPriority="high"
+        userLocationUpdateInterval={5000}
+        userLocationFastestInterval={2000}
+        followsUserLocation={false}
         onMapReady={() => {
           console.log('[Map] onMapReady発火');
           fireReady();
