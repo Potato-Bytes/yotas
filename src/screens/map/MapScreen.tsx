@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Region } from 'react-native-maps';
 import { useLocationStore } from '../../stores/locationStore';
-import { useReviewStore } from '../../stores/reviewStore';
+import { useReviewStore } from '../../stores';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
