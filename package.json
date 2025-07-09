@@ -30,6 +30,7 @@
     "@react-navigation/stack": "^7.4.2",
     "@tanstack/react-query": "^5.81.5",
     "@types/react-native-vector-icons": "^6.4.18",
+    "core-js": "^3.44.0",
     "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "react": "19.1.0",

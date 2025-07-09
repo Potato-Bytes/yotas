@@ -29,55 +29,61 @@ export default function MapScreen() {
   // ========== すべてのHookを最初に宣言（条件なし） ==========
   const mapRef = useRef<MapView>(null);
   const { location, errorMsg, isLoading } = useLocationStore();
-  const [userMoved, setUserMoved] = useState<boolean>(false);
+  
+  /** region を完全にこの state だけで管理 */
+  const [region, setRegion] = useState<Region | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  // region計算をメモ化
-  const displayRegion = useMemo<Region>(() => {
-    if (location) {
-      const gpsRegion = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      };
-      console.log('MapScreen: region決定 - ソース: gps', gpsRegion);
-      return gpsRegion;
-    }
-    
-    console.log('MapScreen: region決定 - ソース: default', DEFAULT_REGION);
-    return DEFAULT_REGION;
-  }, [location]);
-
-  // centerOnUser関数
-  const centerOnUser = useCallback(() => {
-    if (location && mapRef.current && mapReady) {
-      const userRegion = {
+  /** ① 位置情報が来たら一度だけ region を決定 */
+  useEffect(() => {
+    if (!region && location) {
+      const initialRegion = {
         latitude: location.latitude,
         longitude: location.longitude,
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       };
-      console.log('MapScreen: 現在地へセンタリング', userRegion);
-      mapRef.current.animateToRegion(userRegion, 1000);
-      setUserMoved(false);
-    } else {
-      console.log('MapScreen: centerOnUser条件未満 - location:', !!location, 'mapReady:', mapReady);
+      console.log('MapScreen: 初期region設定', initialRegion);
+      setRegion(initialRegion);
     }
+  }, [location, region]);
+
+  // centerOnUser関数（region更新込み）
+  const centerOnUser = useCallback(() => {
+    if (!location || !mapReady) {
+      console.log('MapScreen: centerOnUser条件未満 - location:', !!location, 'mapReady:', mapReady);
+      return;
+    }
+    const userRegion = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+    console.log('MapScreen: 現在地へセンタリング', userRegion);
+    mapRef.current?.animateToRegion(userRegion, 500);
+    setRegion(userRegion); // ★ props も同じ値に
   }, [location, mapReady]);
 
-  // 画面フォーカス時の再センタリング
+  // 画面フォーカス時の復元
   useFocusEffect(
     useCallback(() => {
-      if (mapReady) centerOnUser();
-      return () => setUserMoved(false);
-    }, [mapReady, centerOnUser]),
+      // 画面復帰時
+      if (region) {
+        console.log('MapScreen: 画面復帰 - 最後のregionで復元', region);
+        mapRef.current?.animateToRegion(region, 0);
+      } else {
+        console.log('MapScreen: 画面復帰 - 現在地にセンタリング');
+        centerOnUser();
+      }
+      return () => {}; // cleanup 特になし
+    }, [region, centerOnUser]),
   );
 
   // コールバック関数
-  const handleRegionChangeComplete = useCallback((region: Region) => {
-    console.log('MapScreen: ユーザーが地図を操作', region);
-    setUserMoved(true);
+  const handleRegionChangeComplete = useCallback((r: Region) => {
+    console.log('MapScreen: ユーザーが地図を操作', r);
+    setRegion(r); // ★ ユーザ操作を常に保存
   }, []);
 
   const handleMapReady = useCallback(() => {
@@ -86,11 +92,22 @@ export default function MapScreen() {
   }, []);
 
   // ========== レンダリング ==========
+  console.log('MapScreen: レンダリング状態', { region, location, isLoading, errorMsg });
+  
   return (
     <View style={styles.container}>
+      {/* デバッグ情報 */}
+      <View style={styles.debugInfo}>
+        <Text>region: {region ? 'あり' : 'なし'}</Text>
+        <Text>location: {location ? 'あり' : 'なし'}</Text>
+        <Text>isLoading: {isLoading ? 'true' : 'false'}</Text>
+        <Text>errorMsg: {errorMsg || 'なし'}</Text>
+      </View>
+      
+      {/* 一時的に無条件でMapを表示 */}
       <Map
         ref={mapRef}
-        region={displayRegion}
+        region={region || DEFAULT_REGION}
         onSafeReady={handleMapReady}
         showUserMarker={!!location}
         onRegionChangeComplete={handleRegionChangeComplete}
@@ -168,5 +185,14 @@ const styles = StyleSheet.create({
   },
   centerButtonText: {
     fontSize: 24,
+  },
+  debugInfo: {
+    position: 'absolute',
+    top: 50,
+    left: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 10,
+    borderRadius: 5,
+    zIndex: 1000,
   },
 });
