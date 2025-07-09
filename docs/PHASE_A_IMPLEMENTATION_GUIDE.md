@@ -11,6 +11,8 @@
 | タスク | ステータス | 完了日時 | 備考 |
 |-------|---------|---------|------|
 | 1. watchPosition の導入 | ✅ 完了 | 2025-07-09 14:05 | 実機テストで位置情報更新を確認 |
+| 1.1. Hook順序エラー修正 | ✅ 完了 | 2025-07-09 15:30 | React Hooksの順序問題を解決 |
+| 1.2. MapView制御改善 | ✅ 完了 | 2025-07-09 15:30 | animateToRegionとonMapReady追加 |
 | 2. 現在地マーカーを描画 | 🔲 未着手 | - | - |
 | 3. FAB 追加 | 🔲 未着手 | - | - |
 | 4. 権限・GPS エラー UX | 🔲 未着手 | - | - |
@@ -21,6 +23,19 @@
 - ✅ MapScreenで現在地表示が正常動作
 - ✅ PostReviewScreenでも位置情報を取得
 - ✅ メモリリーク防止のためのstop()実装済み
+
+### 修正完了（Phase A-1.1 & A-1.2）
+- ✅ React Hooks順序エラーの修正
+- ✅ MapView制御の改善（animateToRegion）
+- ✅ onMapReadyによる地図準備完了の待機処理
+- ✅ 早期リターンの削除とJSX内での条件分岐
+- ✅ エラーハンドリングとローディング表示の改善
+
+### 技術的改善点
+- **Hook順序の安定化**: 全てのHookをコンポーネントの最初に宣言
+- **MapView制御**: `onMapReady`と`isMapReady`状態でアニメーションタイミングを制御
+- **パフォーマンス最適化**: `displayRegion`をuseMemoで計算
+- **デバッグ改善**: より詳細なログ出力とエラー表示
 
 ---
 
@@ -38,6 +53,24 @@ src/
 ├── screens/map/MapScreen.tsx
 └── assets/icons/
 ```
+
+---
+
+## 🚨 重要な問題と解決策
+
+### Hook順序エラーの修正
+**問題**: `React has detected a change in the order of Hooks called by MapScreen`
+**解決策**: 
+1. 全てのHookをコンポーネントの最初に宣言
+2. 条件分岐内でHookを呼ばない
+3. 早期リターンを削除してJSX内で条件分岐
+
+### MapView制御の改善
+**問題**: 位置情報は取得できているが地図に反映されない
+**解決策**:
+1. `onMapReady`でMapViewの準備完了を待つ
+2. `animateToRegion`でアニメーション付きで地図移動
+3. `displayRegion`をuseMemoで最適化
 
 ---
 
