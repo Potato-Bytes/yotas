@@ -1,0 +1,44 @@
+--------- beginning of main
+07-09 11:47:57.444 I/ReactNativeJS(29955): Running "yotas" with {"rootTag":11,"initialProps":{},"fabric":true}
+07-09 11:47:57.538 I/ReactNativeJS(29955): App: レンダリング中
+07-09 11:47:57.611 I/ReactNativeJS(29955): authStore: 初期化開始
+07-09 11:47:57.666 I/ReactNativeJS(29955): 'authStore: 初期化完了', { user: null }
+07-09 11:47:57.670 I/ReactNativeJS(29955): App: 位置情報の初期化開始
+07-09 11:47:57.909 I/ReactNativeJS(29955): 'authStore: 認証状態変更:', null
+--------- beginning of crash
+07-09 11:47:58.007 E/AndroidRuntime(29955): FATAL EXCEPTION: mqt_v_native
+07-09 11:47:58.007 E/AndroidRuntime(29955): Process: com.yotas, PID: 29955
+07-09 11:47:58.007 E/AndroidRuntime(29955): java.lang.IncompatibleClassChangeError: Found interface com.google.android.gms.location.FusedLocationProviderClient, but class was expected (declaration of 'com.google.android.gms.location.FusedLocationProviderClient' appears in /data/app/~~uy_9w1NilKSCBe3eKGM1JA==/com.yotas-Zxy2xhC5JQg5_sYDeMoeYA==/base.apk!classes17.dex)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.agontuk.RNFusedLocation.FusedLocationProvider.getCurrentLocation(FusedLocationProvider.java:97)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.agontuk.RNFusedLocation.RNFusedLocationModule.getCurrentPosition(RNFusedLocationModule.java:112)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.facebook.jni.NativeRunnable.run(Native Method)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at android.os.Handler.handleCallback(Handler.java:991)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at android.os.Handler.dispatchMessage(Handler.java:102)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.facebook.react.bridge.queue.MessageQueueThreadHandler.dispatchMessage(MessageQueueThreadHandler.kt:21)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at android.os.Looper.loopOnce(Looper.java:232)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at android.os.Looper.loop(Looper.java:317)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.startNewBackgroundThread$lambda$1(MessageQueueThreadImpl.kt:175)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.$r8$lambda$ldnZnqelhYFctGaUKkOKYj5rxo4(Unknown Source:0)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)
+07-09 11:47:58.007 E/AndroidRuntime(29955): 	at java.lang.Thread.run(Thread.java:1119)
+07-09 11:48:04.431 I/ReactNativeJS(30040): Running "yotas" with {"rootTag":11,"initialProps":{},"fabric":true}
+07-09 11:48:04.523 I/ReactNativeJS(30040): App: レンダリング中
+07-09 11:48:04.593 I/ReactNativeJS(30040): authStore: 初期化開始
+07-09 11:48:04.642 I/ReactNativeJS(30040): 'authStore: 初期化完了', { user: null }
+07-09 11:48:04.646 I/ReactNativeJS(30040): App: 位置情報の初期化開始
+07-09 11:48:04.852 I/ReactNativeJS(30040): 'authStore: 認証状態変更:', null
+07-09 11:48:04.899 E/AndroidRuntime(30040): FATAL EXCEPTION: mqt_v_native
+07-09 11:48:04.899 E/AndroidRuntime(30040): Process: com.yotas, PID: 30040
+07-09 11:48:04.899 E/AndroidRuntime(30040): java.lang.IncompatibleClassChangeError: Found interface com.google.android.gms.location.FusedLocationProviderClient, but class was expected (declaration of 'com.google.android.gms.location.FusedLocationProviderClient' appears in /data/app/~~uy_9w1NilKSCBe3eKGM1JA==/com.yotas-Zxy2xhC5JQg5_sYDeMoeYA==/base.apk!classes17.dex)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.agontuk.RNFusedLocation.FusedLocationProvider.getCurrentLocation(FusedLocationProvider.java:97)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.agontuk.RNFusedLocation.RNFusedLocationModule.getCurrentPosition(RNFusedLocationModule.java:112)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.facebook.jni.NativeRunnable.run(Native Method)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at android.os.Handler.handleCallback(Handler.java:991)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at android.os.Handler.dispatchMessage(Handler.java:102)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.facebook.react.bridge.queue.MessageQueueThreadHandler.dispatchMessage(MessageQueueThreadHandler.kt:21)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at android.os.Looper.loopOnce(Looper.java:232)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at android.os.Looper.loop(Looper.java:317)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.startNewBackgroundThread$lambda$1(MessageQueueThreadImpl.kt:175)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion.$r8$lambda$ldnZnqelhYFctGaUKkOKYj5rxo4(Unknown Source:0)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at com.facebook.react.bridge.queue.MessageQueueThreadImpl$Companion$$ExternalSyntheticLambda0.run(D8$$SyntheticClass:0)
+07-09 11:48:04.899 E/AndroidRuntime(30040): 	at java.lang.Thread.run(Thread.java:1119)
