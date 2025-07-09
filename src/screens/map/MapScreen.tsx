@@ -42,8 +42,7 @@ const MapScreen: React.FC = () => {
   // MapView ref
   const mapRef = useRef<MapView>(null);
   
-  // State
-  const [isMapReady, setIsMapReady] = useState(false);
+  // State - removed isMapReady as it's not needed with controlled MapView
 
   // デバッグログ
   console.log('MapScreen: レンダリング状態', {
@@ -90,10 +89,9 @@ const MapScreen: React.FC = () => {
     mapRef.current.animateToRegion(target, 700);
   };
 
-  // MapViewのイベントハンドラー
+  // MapView ready handler - simplified for controlled MapView
   const handleMapReady = () => {
     console.log('MapScreen: Map is ready');
-    setIsMapReady(true);
   };
 
   // カスタム現在地ボタン
@@ -141,11 +139,11 @@ const MapScreen: React.FC = () => {
           <Marker
             key={review.id}
             coordinate={{
-              latitude: review.latitude,
-              longitude: review.longitude,
+              latitude: review.location.latitude,
+              longitude: review.location.longitude,
             }}
-            title={review.title}
-            description={review.description}
+            title={review.placeName}
+            description={review.comment}
           />
         ))}
       </MapView>
@@ -176,9 +174,6 @@ const MapScreen: React.FC = () => {
       {/* デバッグ情報（開発環境のみ） */}
       {__DEV__ && (
         <View style={styles.debugContainer}>
-          <Text style={styles.debugText}>
-            Ready: {isMapReady ? '✓' : '✗'}
-          </Text>
           {location && (
             <Text style={styles.debugText}>
               Loc: {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
