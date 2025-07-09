@@ -20,3 +20,20 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    
+    configurations.all {
+        resolutionStrategy {
+            // Google Play Servicesのバージョンを強制統一
+            force "com.google.android.gms:play-services-location:21.0.1"
+            force "com.google.android.gms:play-services-base:18.5.0"
+            force "com.google.android.gms:play-services-maps:18.2.0"
+            force "com.google.android.gms:play-services-basement:18.3.0"
+        }
+    }
+}
